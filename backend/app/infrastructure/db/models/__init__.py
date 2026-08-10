@@ -11,5 +11,27 @@ from app.infrastructure.db.models.catalog import (
     ProcessTag,
     TopologyEdge,
 )
+from app.infrastructure.db.models.scenario import (
+    AlarmRule,
+    DisturbanceTemplate,
+    ExpectedActionRule,
+    ScenarioLevel,
+    ScenarioStage,
+    ScenarioVersion,
+    ScoringPolicyVersion,
+)
 
-__all__ = ["Base", "Equipment", "InstallationVersion", "ProcessTag", "TopologyEdge"]
+__all__ = [
+    "AlarmRule",
+    "Base",
+    "DisturbanceTemplate",
+    "Equipment",
+    "ExpectedActionRule",
+    "InstallationVersion",
+    "ProcessTag",
+    "ScenarioLevel",
+    "ScenarioStage",
+    "ScenarioVersion",
+    "ScoringPolicyVersion",
+    "TopologyEdge",
+]
