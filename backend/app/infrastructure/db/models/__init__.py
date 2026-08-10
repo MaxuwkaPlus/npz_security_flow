@@ -20,18 +20,32 @@ from app.infrastructure.db.models.scenario import (
     ScenarioVersion,
     ScoringPolicyVersion,
 )
+from app.infrastructure.db.models.session import (
+    SCHEMA_VERSION,
+    CommandRequest,
+    ProcessSnapshot,
+    SessionEvent,
+    SessionStageHistory,
+    TrainingSession,
+)
 
 __all__ = [
+    "SCHEMA_VERSION",
     "AlarmRule",
     "Base",
+    "CommandRequest",
     "DisturbanceTemplate",
     "Equipment",
     "ExpectedActionRule",
     "InstallationVersion",
+    "ProcessSnapshot",
     "ProcessTag",
     "ScenarioLevel",
     "ScenarioStage",
     "ScenarioVersion",
     "ScoringPolicyVersion",
+    "SessionEvent",
+    "SessionStageHistory",
     "TopologyEdge",
+    "TrainingSession",
 ]

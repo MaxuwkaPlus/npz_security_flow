@@ -1,0 +1,139 @@
+from datetime import datetime
+
+from sqlalchemy import ForeignKey, Index, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.infrastructure.db.base import Base
+from app.infrastructure.db.types import (
+    Code,
+    JsonDict,
+    Timestamp,
+    UtcDateTime,
+    UuidStr,
+    new_uuid,
+)
+
+SCHEMA_VERSION = 1
+
+
+class TrainingSession(Base):
+    """Одно прохождение конкретной версии сценария конкретным оператором."""
+
+    __tablename__ = "training_sessions"
+    __table_args__ = (
+        Index("ix_training_sessions_operator_started", "operator_id", "started_at"),
+        Index("ix_training_sessions_active", "status"),
+    )
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    operator_id: Mapped[Code]
+    instructor_id: Mapped[str | None] = mapped_column(default=None)
+    scenario_version_id: Mapped[UuidStr] = mapped_column(ForeignKey("scenario_versions.id"), index=True)
+    scenario_level_id: Mapped[UuidStr] = mapped_column(ForeignKey("scenario_levels.id"), index=True)
+    scoring_policy_version_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("scoring_policy_versions.id"), index=True
+    )
+    status: Mapped[Code]
+    sim_time_ms: Mapped[int] = mapped_column(default=0)
+    # Единый монотонный счётчик сессии: события и снимки нумеруются из него,
+    # поэтому клиент по одному sequence_no видит пропуск в любом канале.
+    last_sequence_no: Mapped[int] = mapped_column(default=0)
+    current_stage_code: Mapped[Code]
+    random_seed: Mapped[int]
+    # Целевая ветвь, момент и причина возмущения. Никогда не сериализуется в операторский DTO.
+    hidden_runtime_config_json: Mapped[JsonDict]
+    final_outcome: Mapped[str | None] = mapped_column(default=None)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    paused_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    created_at: Mapped[Timestamp]
+    # Optimistic locking: клиент может передать ожидаемую версию сессии.
+    version_no: Mapped[int] = mapped_column(default=1)
+
+    __mapper_args__ = {"version_id_col": version_no}  # noqa: RUF012 — контракт SQLAlchemy
+
+
+class SessionEvent(Base):
+    """Неизменяемый факт внутри сессии. Исправление выполняется компенсирующим событием."""
+
+    __tablename__ = "session_events"
+    __table_args__ = (
+        UniqueConstraint("session_id", "sequence_no"),
+        Index("ix_session_events_session_sequence", "session_id", "sequence_no"),
+    )
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    sequence_no: Mapped[int]
+    sim_time_ms: Mapped[int]
+    occurred_at: Mapped[Timestamp]
+    event_type: Mapped[Code]
+    aggregate_type: Mapped[Code]
+    aggregate_id: Mapped[str | None] = mapped_column(default=None)
+    payload_json: Mapped[JsonDict]
+    causation_id: Mapped[str | None] = mapped_column(default=None)
+    correlation_id: Mapped[str | None] = mapped_column(default=None)
+    schema_version: Mapped[int] = mapped_column(default=SCHEMA_VERSION)
+
+
+class ProcessSnapshot(Base):
+    """Снимок состояния установки в момент симуляционного времени."""
+
+    __tablename__ = "process_snapshots"
+    __table_args__ = (
+        UniqueConstraint("session_id", "sequence_no"),
+        UniqueConstraint("session_id", "sim_time_ms"),
+        Index("ix_process_snapshots_session_sim_time", "session_id", "sim_time_ms"),
+    )
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    sequence_no: Mapped[int]
+    sim_time_ms: Mapped[int]
+    stage_code: Mapped[Code]
+    visible_values_json: Mapped[JsonDict]
+    derived_values_json: Mapped[JsonDict]
+    # Скрытое состояние двойника: доступно только replay и аудиту.
+    internal_state_json: Mapped[JsonDict]
+    state_hash: Mapped[Code]
+    schema_version: Mapped[int] = mapped_column(default=SCHEMA_VERSION)
+    created_at: Mapped[Timestamp]
+
+
+class SessionStageHistory(Base):
+    """История прохождения этапов сценария."""
+
+    __tablename__ = "session_stage_history"
+    __table_args__ = (Index("ix_session_stage_history_session_entered", "session_id", "entered_sim_time_ms"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    stage_code: Mapped[Code]
+    entered_sim_time_ms: Mapped[int]
+    exited_sim_time_ms: Mapped[int | None] = mapped_column(default=None)
+    outcome: Mapped[str | None] = mapped_column(default=None)
+    transition_reason_event_id: Mapped[str | None] = mapped_column(
+        ForeignKey("session_events.id", ondelete="SET NULL"), default=None
+    )
+
+
+class CommandRequest(Base):
+    """Журнал принятых `request_id`: повторный запрос возвращает прежний результат."""
+
+    __tablename__ = "command_requests"
+
+    request_id: Mapped[UuidStr] = mapped_column(primary_key=True)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    command: Mapped[Code]
+    response_json: Mapped[JsonDict]
+    created_at: Mapped[Timestamp]
+
+    session: Mapped[TrainingSession] = relationship()

@@ -1,0 +1,138 @@
+import hashlib
+import json
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.infrastructure.db.models import (
+    CommandRequest,
+    ProcessSnapshot,
+    SessionEvent,
+    SessionStageHistory,
+    TrainingSession,
+)
+
+
+def state_hash(values: dict[str, Any]) -> str:
+    """Хеш снимка для проверки воспроизводимости replay (§18)."""
+
+    payload = json.dumps(values, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class SessionRepository:
+    """Доступ к агрегату прохождения: сессия, её события, снимки и история этапов."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    def add(self, training_session: TrainingSession) -> None:
+        self._session.add(training_session)
+
+    async def get(self, session_id: str) -> TrainingSession | None:
+        training_session: TrainingSession | None = await self._session.get(TrainingSession, session_id)
+        return training_session
+
+    def append_event(
+        self,
+        training_session: TrainingSession,
+        event_type: str,
+        aggregate_type: str,
+        payload: dict[str, Any],
+        *,
+        aggregate_id: str | None = None,
+        correlation_id: str | None = None,
+        causation_id: str | None = None,
+    ) -> SessionEvent:
+        """Присваивает событию следующий номер из счётчика сессии."""
+
+        training_session.last_sequence_no += 1
+        event = SessionEvent(
+            session_id=training_session.id,
+            sequence_no=training_session.last_sequence_no,
+            sim_time_ms=training_session.sim_time_ms,
+            event_type=event_type,
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id or training_session.id,
+            payload_json=payload,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+        )
+        self._session.add(event)
+        return event
+
+    def add_snapshot(
+        self,
+        training_session: TrainingSession,
+        visible_values: dict[str, Any],
+        derived_values: dict[str, Any],
+        internal_state: dict[str, Any],
+    ) -> ProcessSnapshot:
+        training_session.last_sequence_no += 1
+        snapshot = ProcessSnapshot(
+            session_id=training_session.id,
+            sequence_no=training_session.last_sequence_no,
+            sim_time_ms=training_session.sim_time_ms,
+            stage_code=training_session.current_stage_code,
+            visible_values_json=visible_values,
+            derived_values_json=derived_values,
+            internal_state_json=internal_state,
+            state_hash=state_hash({"visible": visible_values, "internal": internal_state}),
+        )
+        self._session.add(snapshot)
+        return snapshot
+
+    async def latest_snapshot(self, session_id: str) -> ProcessSnapshot | None:
+        query = (
+            select(ProcessSnapshot)
+            .where(ProcessSnapshot.session_id == session_id)
+            .order_by(ProcessSnapshot.sim_time_ms.desc())
+            .limit(1)
+        )
+        snapshot: ProcessSnapshot | None = await self._session.scalar(query)
+        return snapshot
+
+    async def events_after(self, session_id: str, after_sequence_no: int) -> Sequence[SessionEvent]:
+        query = (
+            select(SessionEvent)
+            .where(SessionEvent.session_id == session_id, SessionEvent.sequence_no > after_sequence_no)
+            .order_by(SessionEvent.sequence_no)
+        )
+        return (await self._session.scalars(query)).all()
+
+    def open_stage(self, training_session: TrainingSession, stage_code: str) -> SessionStageHistory:
+        entry = SessionStageHistory(
+            session_id=training_session.id,
+            stage_code=stage_code,
+            entered_sim_time_ms=training_session.sim_time_ms,
+        )
+        self._session.add(entry)
+        return entry
+
+    async def current_stage_entry(self, session_id: str) -> SessionStageHistory | None:
+        query = (
+            select(SessionStageHistory)
+            .where(
+                SessionStageHistory.session_id == session_id,
+                SessionStageHistory.exited_sim_time_ms.is_(None),
+            )
+            .order_by(SessionStageHistory.entered_sim_time_ms.desc())
+            .limit(1)
+        )
+        entry: SessionStageHistory | None = await self._session.scalar(query)
+        return entry
+
+    async def find_command_request(self, request_id: str) -> CommandRequest | None:
+        request: CommandRequest | None = await self._session.get(CommandRequest, request_id)
+        return request
+
+    def add_command_request(
+        self, request_id: str, session_id: str, command: str, response: dict[str, Any]
+    ) -> None:
+        self._session.add(
+            CommandRequest(
+                request_id=request_id, session_id=session_id, command=command, response_json=response
+            )
+        )
