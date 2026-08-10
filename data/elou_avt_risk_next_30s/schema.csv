@@ -1,0 +1,111 @@
+field_name,dtype,unit,model_role,nullable,normalization,description
+dataset_version,string,-,identifier,0,none,Версия схемы синтетического корпуса.
+snapshot_id,string,-,identifier,0,none,Уникальный идентификатор временного среза.
+session_id,string,-,group_key,0,none,Идентификатор прохождения; разбиение выполняется только целыми сессиями.
+split,category,-,split_key,0,none,Готовое разбиение train/validation/test по session_id.
+is_synthetic,int8,0/1,audit_only,0,none,1 для синтетических данных; не является признаком.
+random_seed,int32,-,audit_only,0,none,Seed сессии для полного воспроизведения.
+sim_time_s,int32,s,context_feature,0,divide by 3900 or StandardScaler on train,Симуляционное время от начала сквозного сценария.
+snapshot_interval_s,int16,s,audit_only,0,none,Шаг снимков состояния; 5 секунд.
+scenario_id,category,-,grouping_only,0,one-hot only in multi-scenario model,Идентификатор сквозного сценария ЭЛОУ-АВТ.
+scenario_version,string,-,audit_only,0,none,Версия сценария и правил генерации.
+stage_code,category,-,context_feature,0,one-hot or native categorical,Текущий технологический этап сценария.
+scenario_progress_ratio,float32,0..1,context_feature,0,already normalized,Доля пройденного времени сценария.
+difficulty_level,int8,1..3,context_feature,0,ordinal unchanged,"Уровень сложности: скорость развития, помехи, подсказки и дедлайн."
+operator_profile,category,-,audit_only,0,exclude: synthetic generator latent variable,Синтетический профиль поведения оператора.
+disturbance_cause,category,-,audit_only,0,exclude: hidden root-cause leakage,Скрытая первопричина снижения расхода.
+disturbance_target_branch,int8,1..3,audit_only,0,exclude: hidden scenario configuration,"Ветвь, в которой развивается скрытое возмущение."
+disturbance_onset_s,int32,s,audit_only,0,exclude: future/scenario leakage,Скрытый момент начала возмущения.
+disturbance_active_true,int8,0/1,audit_only,0,exclude: unavailable to operator,Истинный флаг активности возмущения.
+disturbance_severity_true,float32,0..1,audit_only,0,exclude: latent state leakage,Истинная интенсивность возмущения цифрового двойника.
+sensor_delay_s,float32,s,context_feature,0,divide by configured maximum,Задержка отображаемых измерений.
+nuisance_alarm_rate_min,float32,alarms/min,context_feature,0,log1p then StandardScaler on train,Интенсивность второстепенных тревог.
+reaction_deadline_s,float32,s,context_feature,0,divide reaction times by this value,Допустимое время до начала корректного защитного действия.
+hints_enabled,int8,0/1,context_feature,0,unchanged,Доступны ли оператору учебные подсказки.
+branch_1_flow_tph,float32,t/h,raw_feature,0,prefer branch flow ratio or StandardScaler on train,Отображаемый расход сырой нефти по ветви №1.
+branch_1_flow_ratio,float32,ratio,derived_feature,0,divide by nominal branch flow,Расход ветви №1 относительно номинала 100 т/ч.
+branch_1_pressure_bar,float32,bar,raw_feature,0,divide by nominal pressure or StandardScaler on train,Давление сырья по ветви №1.
+branch_1_valve_command_pct,float32,%,raw_feature,0,divide by 100,Командное положение регулирующего органа ветви №1.
+branch_1_valve_actual_pct,float32,%,raw_feature,0,divide by 100,Фактическое положение регулирующего органа ветви №1.
+branch_1_t11_outlet_temp_c,float32,degC,raw_feature,0,use temperature margin and StandardScaler on train,Температура ветви №1 после предварительного теплообмена Т-1…Т-11.
+branch_2_flow_tph,float32,t/h,raw_feature,0,prefer branch flow ratio or StandardScaler on train,Отображаемый расход сырой нефти по ветви №2.
+branch_2_flow_ratio,float32,ratio,derived_feature,0,divide by nominal branch flow,Расход ветви №2 относительно номинала 100 т/ч.
+branch_2_pressure_bar,float32,bar,raw_feature,0,divide by nominal pressure or StandardScaler on train,Давление сырья по ветви №2.
+branch_2_valve_command_pct,float32,%,raw_feature,0,divide by 100,Командное положение регулирующего органа ветви №2.
+branch_2_valve_actual_pct,float32,%,raw_feature,0,divide by 100,Фактическое положение регулирующего органа ветви №2.
+branch_2_t11_outlet_temp_c,float32,degC,raw_feature,0,use temperature margin and StandardScaler on train,Температура ветви №2 после предварительного теплообмена Т-1…Т-11.
+branch_3_flow_tph,float32,t/h,raw_feature,0,prefer branch flow ratio or StandardScaler on train,Отображаемый расход сырой нефти по ветви №3.
+branch_3_flow_ratio,float32,ratio,derived_feature,0,divide by nominal branch flow,Расход ветви №3 относительно номинала 100 т/ч.
+branch_3_pressure_bar,float32,bar,raw_feature,0,divide by nominal pressure or StandardScaler on train,Давление сырья по ветви №3.
+branch_3_valve_command_pct,float32,%,raw_feature,0,divide by 100,Командное положение регулирующего органа ветви №3.
+branch_3_valve_actual_pct,float32,%,raw_feature,0,divide by 100,Фактическое положение регулирующего органа ветви №3.
+branch_3_t11_outlet_temp_c,float32,degC,raw_feature,0,use temperature margin and StandardScaler on train,Температура ветви №3 после предварительного теплообмена Т-1…Т-11.
+total_feed_flow_tph,float32,t/h,raw_feature,0,divide by 300 or StandardScaler on train,Суммарный расход трёх сырьевых потоков.
+min_branch_flow_ratio,float32,ratio,derived_feature,0,already normalized,Минимальный относительный расход среди трёх ветвей.
+flow_imbalance_ratio,float32,ratio,derived_feature,0,already normalized; robust clipping only for linear models,"Размах расходов трёх ветвей, делённый на их среднее."
+lowest_flow_branch_code,category,-,derived_feature,0,one-hot or native categorical,Номер ветви с минимальным отображаемым расходом; observable derived value.
+feed_pump_discharge_pressure_bar,float32,bar,raw_feature,0,divide by nominal pressure,Давление на выкиде работающего сырьевого насоса.
+t11_combined_outlet_temp_c,float32,degC,raw_feature,0,use t11_temperature_margin_norm,Средняя температура трёх потоков после Т-1…Т-11.
+t11_temperature_margin_norm,float32,ratio,derived_feature,0,already domain-normalized; keep negative values,"(140 - максимальная температура ветви) / 15; 0 на ограничении, отрицательное значение выше ограничения."
+min_branch_flow_change_30s_pct,float32,% nominal/30s,derived_feature,0,StandardScaler fitted on train,Изменение минимального расхода ветви за предыдущие 30 секунд.
+t11_max_temp_change_30s_c,float32,degC/30s,derived_feature,0,StandardScaler fitted on train,Изменение максимальной температуры после Т-1…Т-11 за 30 секунд.
+elou_wash_water_ratio,float32,ratio,raw_feature,0,already a ratio,Расход промывочной воды относительно расхода нефти.
+elou_stage1_min_level_mm,float32,mm,raw_feature,0,divide by configured nominal level,Минимальный уровень в Э-1/Э-3/Э-5.
+elou_stage2_min_level_mm,float32,mm,raw_feature,0,divide by configured nominal level,Минимальный уровень в Э-2/Э-4/Э-6.
+elou_temperature_c,float32,degC,raw_feature,0,StandardScaler fitted on train,Температура нефти на участке ЭЛОУ.
+elou_load_imbalance_ratio,float32,ratio,derived_feature,0,already normalized,Рассогласование нагрузки параллельных ветвей ЭЛОУ.
+elou_hv_trip_count,int8,count,derived_feature,0,unchanged,Количество отключённых высоковольтных секций из-за низкого уровня.
+e15_level_pct,float32,%,raw_feature,0,divide by 100,Уровень в Е-15.
+n20_state,category,-,raw_feature,0,one-hot or native categorical,Состояние насосов Н-20: OFF/RUNNING/DEGRADED.
+k1_feed_flow_ratio,float32,ratio,derived_feature,0,already normalized,Подача на К-1 относительно требуемого режима.
+k1_pressure_bar,float32,bar,raw_feature,0,divide by configured nominal pressure,Давление К-1.
+k1_top_temp_c,float32,degC,raw_feature,0,StandardScaler fitted on train,Температура верха К-1.
+k1_bottom_temp_c,float32,degC,raw_feature,0,use margin to limit 280 degC,Температура низа К-1.
+k1_level_pct,float32,%,raw_feature,0,divide by 100,Уровень в К-1.
+furnace_feed_flow_ratio,float32,ratio,derived_feature,0,already normalized,Расход сырья через печи относительно номинала.
+furnace_outlet_temp_c,float32,degC,raw_feature,0,StandardScaler fitted on train,Температура продукта на выходе печей.
+furnace_heat_load_pct,float32,%,raw_feature,0,divide by 100,Тепловая нагрузка печей.
+furnace_heat_to_feed_ratio,float32,ratio,derived_feature,0,already normalized,Отношение тепловой нагрузки к относительному расходу сырья.
+k2_pressure_bar,float32,bar,raw_feature,0,divide by configured maximum,Давление верха К-2.
+k2_top_temp_c,float32,degC,raw_feature,0,use margin to limit 148 degC,Температура верха К-2.
+k2_bottom_temp_c,float32,degC,raw_feature,0,use margin to limit 350 degC,Температура низа К-2.
+k2_stability_index,float32,0..1,derived_feature,0,already normalized,Агрегированный индекс устойчивости К-2.
+side_draw_stability_index,float32,0..1,derived_feature,0,already normalized,Устойчивость боковых отборов К-3/1…К-3/3.
+product_flow_stability_index,float32,0..1,derived_feature,0,already normalized,Устойчивость продуктовых потоков.
+deviating_parameters_count,int16,count,derived_feature,0,unchanged or StandardScaler on train,Число одновременно отклонённых технологических параметров.
+critical_parameters_count,int16,count,derived_feature,0,unchanged,Число параметров в критической области.
+active_alarms_count,int16,count,behavior_feature,0,log1p then StandardScaler on train,Количество активных тревог.
+critical_alarms_count,int16,count,behavior_feature,0,unchanged,Количество активных критических тревог уровня 4–5.
+nuisance_alarms_count,int16,count,behavior_feature,0,log1p then StandardScaler on train,Количество активных второстепенных тревог.
+unack_alarms_count,int16,count,behavior_feature,0,log1p then StandardScaler on train,Количество активных неподтверждённых тревог.
+alarm_level_max,category,L0..L5,behavior_feature,0,ordinal or native categorical,Максимальный уровень активной технологической тревоги.
+alarm_rate_30s,float32,alarms/min,behavior_feature,0,log1p then StandardScaler on train,Темп появления тревог за последние 30 секунд.
+time_since_primary_alarm_s,float32,s,behavior_feature,1,impute -1 plus missing flag,Время с первой тревоги отклонения расхода.
+max_alarm_age_s,float32,s,behavior_feature,1,impute -1 plus missing flag,Максимальный возраст активной тревоги.
+alarms_ack_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Подтверждения тревог за последние 30 секунд.
+operator_actions_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Все зафиксированные действия оператора за 30 секунд.
+correct_actions_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Корректные действия за 30 секунд.
+incorrect_actions_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Ошибочные действия за 30 секунд.
+dangerous_actions_30s,int16,count,behavior_feature,0,unchanged,Опасные компенсации за 30 секунд.
+repeated_actions_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Повторные команды за 30 секунд.
+cancelled_actions_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Отменённые оператором команды за 30 секунд.
+sequence_violations_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Нарушения эталонной последовательности за 30 секунд.
+result_checks_30s,int16,count,behavior_feature,0,unchanged,Явные проверки результата корректирующего действия за 30 секунд.
+observation_checks_30s,int16,count,behavior_feature,0,log1p then StandardScaler on train,Диагностические просмотры и сравнения параметров за 30 секунд.
+time_since_last_action_s,float32,s,behavior_feature,1,impute -1 plus missing flag,Время с последнего действия оператора.
+deviation_declared,int8,0/1,behavior_feature,0,unchanged,Оператор явно зафиксировал отклонение.
+diagnosis_code,category,-,behavior_feature,0,one-hot or native categorical,Текущая гипотеза оператора: none/pump/valve/heat/sensor/unknown.
+correct_response_started,int8,0/1,behavior_feature,0,unchanged,"Начато первое действие, устраняющее истинную первопричину."
+reaction_elapsed_s,float32,s,behavior_feature,1,divide by reaction_deadline_s; impute -1 before alarm,Время реакции от первичной тревоги до корректного действия либо текущее ожидание.
+reaction_overdue_s,float32,s,behavior_feature,0,divide by reaction_deadline_s; keep raw,Просрочка корректного действия относительно дедлайна; не константна.
+sequence_progress_ratio,float32,0..1,behavior_feature,0,already normalized,Доля выполненных шагов эталонной карты действий.
+expected_step_code,category,-,behavior_feature,0,one-hot or native categorical,Следующий ожидаемый шаг эталонной последовательности.
+verification_required,int8,0/1,behavior_feature,0,unchanged,После корректирующего действия требуется проверка последствий.
+verification_completed,int8,0/1,behavior_feature,0,unchanged,Все обязательные проверки результата завершены.
+verification_missing,int8,0/1,behavior_feature,0,unchanged,Проверка просрочена или не выполнена.
+time_since_unverified_action_s,float32,s,behavior_feature,1,divide by verification window; impute -1,Время с корректирующего действия без полной проверки.
+downstream_checks_completed_count,int8,count,behavior_feature,0,unchanged,"Количество завершённых downstream-проверок: Т-11, ЭЛОУ, Е-15, К-1, печи, К-2, продукты."
+label_valid,int8,0/1,label_metadata,0,filter label_valid == 1,Будущее окно 30 секунд полностью наблюдалось.
+risk_next_30s,int8,0/1,target,1,do not normalize,"1, если критическое событие наступит строго после t и не позднее t+30 секунд; пусто для неполного окна."
+time_to_critical_event_s,float32,s,label_metadata,1,exclude from X,Время до ближайшего будущего критического события.
+target_event_type,category,-,label_metadata,1,exclude from X,Тип ближайшего будущего критического события.

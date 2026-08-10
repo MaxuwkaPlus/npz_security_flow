@@ -1,0 +1,131 @@
+# Python bytecode and interpreter caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Compiled Python/native extensions
+*.so
+*.dylib
+
+# Packaging and build artifacts
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+__pypackages__/
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.test.example
+secrets/
+*.pem
+*.key
+
+# SQLite runtime databases and sidecar files
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Application runtime state
+/var/*
+!/var/.gitkeep
+backend/var/*
+!backend/var/.gitkeep
+instance/
+run/
+*.pid
+*.pid.lock
+*.log
+logs/
+
+# Test and coverage artifacts
+.pytest_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+coverage.json
+htmlcov/
+junit.xml
+test-results/
+
+# Type checker, linter and formatter caches
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.pyright/
+.dmypy.json
+dmypy.json
+
+# uv/pip local caches. Keep uv.lock committed.
+.uv-cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter and notebook checkpoints
+.ipynb_checkpoints/
+
+# Documentation build output
+site/
+docs/_build/
+
+# IDE and editor-specific files
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Operating system metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+Thumbs.db
+Desktop.ini
+
+# Temporary and backup files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Keep source, migrations and datasets tracked:
+# - pyproject.toml and uv.lock
+# - alembic.ini and migrations/
+# - docs/
+# - data/

@@ -1,0 +1,53 @@
+{
+  "dataset_version": "1.0.0-synthetic-elou-avt",
+  "scenario_id": "elou_avt_throughput_branch_degradation",
+  "scenario_version": "1.0.0",
+  "snapshot_interval_s": 5,
+  "prediction_horizon_s": 30,
+  "session_duration_s": 3900,
+  "session_count": 36,
+  "snapshot_count": 28116,
+  "valid_snapshot_count": 27900,
+  "positive_snapshot_count": 823,
+  "positive_rate": 0.029498,
+  "rows_by_split": {
+    "train": 17050,
+    "test": 4650,
+    "validation": 6200
+  },
+  "positive_rows_by_split": {
+    "test": 154,
+    "train": 469,
+    "validation": 200
+  },
+  "critical_events_by_type": {
+    "dangerous_heat_compensation": 20,
+    "t11_branch_overtemperature": 34,
+    "severe_flow_imbalance": 32,
+    "unsafe_furnace_heat_to_feed": 19,
+    "missed_critical_reaction_deadline": 30,
+    "elou_critical_load_imbalance": 20,
+    "elou_low_level_interlock": 26,
+    "k1_critical_feed_deviation": 16,
+    "k2_critical_instability": 18
+  },
+  "profiles": [
+    "expert",
+    "slow",
+    "alarm_overload",
+    "wrong_diagnosis",
+    "no_verification",
+    "chaotic"
+  ],
+  "difficulty_levels": [
+    1,
+    2,
+    3
+  ],
+  "disturbance_causes": [
+    "feed_pump_capacity_loss",
+    "flow_control_valve_stiction"
+  ],
+  "source_scenario_document": "СЦЕНАРИЙ ТРЕНАЖЁРА (1).md",
+  "warning": "Synthetic MVP surrogate. Calibrate equations, thresholds and corrective actions with an ELOU-AVT technologist."
+}

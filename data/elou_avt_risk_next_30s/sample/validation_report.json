@@ -1,0 +1,116 @@
+{
+  "status": "ok",
+  "session_count": 36,
+  "snapshot_count": 28116,
+  "valid_snapshot_count": 27900,
+  "invalid_right_censored_rows": 216,
+  "target_counts": {
+    "0": 27077,
+    "1": 823
+  },
+  "positive_rate": 0.029498,
+  "positive_rows_by_split": {
+    "test": 154,
+    "train": 469,
+    "validation": 200
+  },
+  "action_class_counts": {
+    "correct": 346,
+    "incorrect": 12,
+    "dangerous": 20,
+    "out_of_sequence": 24,
+    "repeated": 12,
+    "cancelled": 12
+  },
+  "critical_event_counts": {
+    "dangerous_heat_compensation": 20,
+    "t11_branch_overtemperature": 34,
+    "severe_flow_imbalance": 32,
+    "unsafe_furnace_heat_to_feed": 19,
+    "missed_critical_reaction_deadline": 30,
+    "elou_critical_load_imbalance": 20,
+    "elou_low_level_interlock": 26,
+    "k1_critical_feed_deviation": 16,
+    "k2_critical_instability": 18
+  },
+  "alarm_record_count": 5494,
+  "important_feature_variability": {
+    "reaction_overdue_s": {
+      "min": 0.0,
+      "max": 690.0,
+      "nonzero": 3580,
+      "unique": 147
+    },
+    "unack_alarms_count": {
+      "min": 0.0,
+      "max": 10.0,
+      "nonzero": 12294,
+      "unique": 11
+    },
+    "repeated_actions_30s": {
+      "min": 0.0,
+      "max": 1.0,
+      "nonzero": 72,
+      "unique": 2
+    },
+    "cancelled_actions_30s": {
+      "min": 0.0,
+      "max": 1.0,
+      "nonzero": 72,
+      "unique": 2
+    },
+    "sequence_violations_30s": {
+      "min": 0.0,
+      "max": 2.0,
+      "nonzero": 114,
+      "unique": 3
+    },
+    "verification_missing": {
+      "min": 0.0,
+      "max": 1.0,
+      "nonzero": 1262,
+      "unique": 2
+    },
+    "result_checks_30s": {
+      "min": 0.0,
+      "max": 3.0,
+      "nonzero": 260,
+      "unique": 4
+    },
+    "deviating_parameters_count": {
+      "min": 0.0,
+      "max": 6.0,
+      "nonzero": 4225,
+      "unique": 7
+    },
+    "flow_imbalance_ratio": {
+      "min": 0.0,
+      "max": 0.467,
+      "nonzero": 26100,
+      "unique": 2296
+    },
+    "elou_load_imbalance_ratio": {
+      "min": 0.0,
+      "max": 0.4296,
+      "nonzero": 21204,
+      "unique": 2170
+    },
+    "k1_feed_flow_ratio": {
+      "min": 0.0,
+      "max": 1.0081,
+      "nonzero": 14292,
+      "unique": 1127
+    },
+    "k2_stability_index": {
+      "min": 0.0,
+      "max": 1.0,
+      "nonzero": 10836,
+      "unique": 2462
+    }
+  },
+  "session_split_isolation": true,
+  "normalization_formula_checks": "passed",
+  "target_horizon_checks": "passed",
+  "leakage_column_checks": "passed",
+  "time_grid_checks": "passed"
+}
