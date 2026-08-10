@@ -147,7 +147,7 @@ class ExpectedActionRule(Base):
     """Эталонный шаг оператора: предусловия, окно, ожидаемый эффект и вес в оценке."""
 
     __tablename__ = "expected_action_rules"
-    __table_args__ = (UniqueConstraint("scenario_version_id", "situation_code", "action_type"),)
+    __table_args__ = (UniqueConstraint("scenario_version_id", "situation_code", "order_no"),)
 
     id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
     scenario_version_id: Mapped[UuidStr] = mapped_column(

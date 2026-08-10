@@ -49,3 +49,7 @@ asyncio_mode = "auto"
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic сам генерирует длинные имена ограничений; переносить их вручную бессмысленно.
+"migrations/versions/*" = ["E501"]

@@ -74,7 +74,27 @@ def branch_outlet_tag(branch_no: int) -> TagSpec:
 
 
 def heat_exchanger_equipment() -> list[EquipmentSpec]:
-    equipment: list[EquipmentSpec] = []
+    """Группа Т-1…Т-11 и её аппараты. Агрегированные температуры принадлежат группе."""
+
+    equipment = [
+        EquipmentSpec(
+            "T-1_T-11",
+            "unit_section",
+            "Теплообменники Т-1…Т-11",
+            tags=(
+                TagSpec("t11_combined_outlet_temp_c", "degC", normal_max=T11_TEMPERATURE_LIMIT_C),
+                TagSpec(
+                    "t11_max_temp_c",
+                    "degC",
+                    normal_max=T11_TEMPERATURE_LIMIT_C,
+                    warning_max=T11_TEMPERATURE_LIMIT_C,
+                    critical_max=144.0,
+                ),
+                TagSpec("t11_min_temp_c", "degC", normal_max=T11_TEMPERATURE_LIMIT_C),
+                TagSpec("t11_temperature_margin_norm", "ratio", normal_min=0.0, critical_min=-0.27),
+            ),
+        )
+    ]
     for branch_no, chain in BRANCH_CHAINS.items():
         for position, code in enumerate(chain, start=1):
             is_last = position == len(chain)
@@ -83,6 +103,7 @@ def heat_exchanger_equipment() -> list[EquipmentSpec]:
                     code=code,
                     equipment_type="heat_exchanger",
                     display_name=display_name(code),
+                    parent_code="T-1_T-11",
                     tags=(branch_outlet_tag(branch_no),) if is_last else (),
                     metadata={"branch_no": branch_no, "position": position},
                 )
