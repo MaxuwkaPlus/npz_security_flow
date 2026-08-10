@@ -2,10 +2,12 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 
 from app.infrastructure.db.engine import Database
 from app.infrastructure.db.models import TrainingSession
+from app.infrastructure.runtime.session_runner import SessionRunner
 from tests.conftest import SeededConfiguration
 
 
@@ -179,3 +181,17 @@ async def test_same_seed_produces_the_same_hidden_disturbance(
     assert hidden[first["id"]] == hidden[second["id"]]
     assert hidden[first["id"]]["target_branch"] in (1, 2, 3)
     assert hidden[first["id"]] != hidden[other["id"]]
+
+
+async def test_start_registers_background_simulation_and_abort_releases_it(
+    client: AsyncClient, configuration: SeededConfiguration, app: FastAPI
+) -> None:
+    runner: SessionRunner = app.state.session_runner
+    session = await create_session(client, configuration)
+    session_id = session["id"]
+
+    await command(client, session_id, "start")
+    assert runner.running_sessions == frozenset({session_id})
+
+    await command(client, session_id, "abort")
+    assert runner.running_sessions == frozenset()

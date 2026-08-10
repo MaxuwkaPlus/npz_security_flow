@@ -14,3 +14,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./var/npz_security_flow.db"
     # Ограниченное ожидание блокировки SQLite: длинные retry маскируют реальную проблему записи.
     sqlite_busy_timeout_ms: int = 5000
+
+    # Во сколько раз симуляционное время идёт быстрее реального.
+    # 1.0 — режим эксплуатации, большие значения нужны для демонстрации и нагрузочных прогонов.
+    simulation_speed_factor: float = 1.0

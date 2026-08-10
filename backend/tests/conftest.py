@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.application.configuration import publish_installation, publish_scenario, publish_scoring_policy
 from app.infrastructure.db.engine import Database
+from app.infrastructure.runtime.session_runner import SessionRunner
 from app.infrastructure.seed.installation import build_installation_spec
 from app.main import create_app
 from app.settings import Settings
@@ -34,8 +35,12 @@ async def database(settings: Settings) -> AsyncIterator[Database]:
 
 
 @pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
+async def app(settings: Settings) -> AsyncIterator[FastAPI]:
+    # ASGITransport не выполняет lifespan, поэтому фоновые задачи гасит сама фикстура.
+    application = create_app(settings)
+    yield application
+    runner: SessionRunner = application.state.session_runner
+    await runner.stop_all()
 
 
 @pytest.fixture

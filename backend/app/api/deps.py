@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db.engine import Database
 from app.infrastructure.db.unit_of_work import UnitOfWork
+from app.infrastructure.runtime.session_runner import SessionRunner
 
 
 def get_database(request: Request) -> Database:
@@ -32,3 +33,11 @@ async def get_unit_of_work(database: DatabaseDep) -> AsyncIterator[UnitOfWork]:
 
 
 UnitOfWorkDep = Annotated[UnitOfWork, Depends(get_unit_of_work)]
+
+
+def get_session_runner(request: Request) -> SessionRunner:
+    runner: SessionRunner = request.app.state.session_runner
+    return runner
+
+
+SessionRunnerDep = Annotated[SessionRunner, Depends(get_session_runner)]

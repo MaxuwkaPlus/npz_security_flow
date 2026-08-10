@@ -1,9 +1,9 @@
 from fastapi import APIRouter, status
 
-from app.api.deps import UnitOfWorkDep
+from app.api.deps import SessionRunnerDep, UnitOfWorkDep
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
 from app.application.sessions import create_session, get_session_state, transition_session
-from app.domain.sessions import SessionCommand
+from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -35,33 +35,54 @@ async def get_state(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
 
 
 @router.post("/{session_id}/start", response_model=SessionResponse)
-async def post_start(session_id: str, payload: SessionCommandRequest, uow: UnitOfWorkDep) -> SessionResponse:
-    return await _transition(uow, session_id, SessionCommand.START, payload)
+async def post_start(
+    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+) -> SessionResponse:
+    return await _transition(runner, session_id, SessionCommand.START, payload)
 
 
 @router.post("/{session_id}/pause", response_model=SessionResponse)
-async def post_pause(session_id: str, payload: SessionCommandRequest, uow: UnitOfWorkDep) -> SessionResponse:
-    return await _transition(uow, session_id, SessionCommand.PAUSE, payload)
+async def post_pause(
+    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+) -> SessionResponse:
+    return await _transition(runner, session_id, SessionCommand.PAUSE, payload)
 
 
 @router.post("/{session_id}/resume", response_model=SessionResponse)
-async def post_resume(session_id: str, payload: SessionCommandRequest, uow: UnitOfWorkDep) -> SessionResponse:
-    return await _transition(uow, session_id, SessionCommand.RESUME, payload)
+async def post_resume(
+    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+) -> SessionResponse:
+    return await _transition(runner, session_id, SessionCommand.RESUME, payload)
 
 
 @router.post("/{session_id}/abort", response_model=SessionResponse)
-async def post_abort(session_id: str, payload: SessionCommandRequest, uow: UnitOfWorkDep) -> SessionResponse:
-    return await _transition(uow, session_id, SessionCommand.ABORT, payload)
+async def post_abort(
+    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+) -> SessionResponse:
+    return await _transition(runner, session_id, SessionCommand.ABORT, payload)
 
 
 async def _transition(
-    uow: UnitOfWorkDep, session_id: str, command: SessionCommand, payload: SessionCommandRequest
+    runner: SessionRunnerDep,
+    session_id: str,
+    command: SessionCommand,
+    payload: SessionCommandRequest,
 ) -> SessionResponse:
-    state = await transition_session(
-        uow,
-        session_id,
-        command,
-        request_id=payload.request_id,
-        expected_version=payload.expected_version,
-    )
+    # Транзакция команды выполняется внутри блокировки сессии и завершается до выхода
+    # из блока: тик и команда никогда не пишут состояние одной сессии одновременно.
+    async with runner.exclusive(session_id) as uow:
+        state = await transition_session(
+            uow,
+            session_id,
+            command,
+            request_id=payload.request_id,
+            expected_version=payload.expected_version,
+        )
+
+    # Симуляцию ведёт фоновая задача. На паузе она остаётся живой, чтобы продолжение
+    # не требовало перезапуска, а в терминальном состоянии освобождается сразу.
+    if state.status is SessionStatus.RUNNING:
+        runner.start(session_id)
+    elif is_terminal(state.status):
+        await runner.stop(session_id)
     return SessionResponse.from_state(state)
