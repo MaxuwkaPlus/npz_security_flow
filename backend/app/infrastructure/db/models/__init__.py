@@ -5,5 +5,11 @@ Alembic и интеграционные тесты берут схему тол�
 """
 
 from app.infrastructure.db.base import Base
+from app.infrastructure.db.models.catalog import (
+    Equipment,
+    InstallationVersion,
+    ProcessTag,
+    TopologyEdge,
+)
 
-__all__ = ["Base"]
+__all__ = ["Base", "Equipment", "InstallationVersion", "ProcessTag", "TopologyEdge"]

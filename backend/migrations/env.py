@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.infrastructure.db.engine import apply_sqlite_pragmas
 from app.infrastructure.db.models import Base
+from app.infrastructure.db.types import UtcDateTime
 from app.settings import Settings
 
 config = context.config
@@ -22,9 +23,22 @@ if not config.get_main_option("sqlalchemy.url"):
 target_metadata = Base.metadata
 
 
+def render_item(type_: str, obj: object, autogen_context: object) -> str | bool:
+    """Пользовательские типы пишем их SQL-эквивалентом, чтобы миграция не зависела от кода приложения."""
+
+    if type_ == "type" and isinstance(obj, UtcDateTime):
+        return "sa.DateTime()"
+    return False
+
+
 def _configure(**kwargs: object) -> None:
     # render_as_batch обязателен: SQLite не поддерживает большинство ALTER TABLE напрямую.
-    context.configure(target_metadata=target_metadata, render_as_batch=True, **kwargs)
+    context.configure(
+        target_metadata=target_metadata,
+        render_as_batch=True,
+        render_item=render_item,
+        **kwargs,
+    )
 
 
 def run_migrations_offline() -> None:
