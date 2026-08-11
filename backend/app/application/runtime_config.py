@@ -4,6 +4,7 @@
 """
 
 from app.domain.clock import SimulationClock
+from app.domain.commands import ControlPolicy
 from app.domain.twin import Disturbance, TwinConfig
 from app.infrastructure.db.models import ScenarioVersion, TrainingSession
 
@@ -22,6 +23,10 @@ def simulation_clock(scenario: ScenarioVersion) -> SimulationClock:
 
 def twin_config(scenario: ScenarioVersion) -> TwinConfig:
     return TwinConfig.from_json(scenario.config_json.get("process_model", {}))
+
+
+def control_policy(scenario: ScenarioVersion) -> ControlPolicy:
+    return ControlPolicy.from_json(scenario.config_json.get("control_actions", {}))
 
 
 def disturbance_of(training_session: TrainingSession) -> Disturbance:

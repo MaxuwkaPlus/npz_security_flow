@@ -6,8 +6,10 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.commands import ActionStatus
 from app.infrastructure.db.models import (
     CommandRequest,
+    OperatorAction,
     ProcessSnapshot,
     SessionEvent,
     SessionStageHistory,
@@ -123,6 +125,51 @@ class SessionRepository:
         )
         entry: SessionStageHistory | None = await self._session.scalar(query)
         return entry
+
+    def add_action(
+        self,
+        training_session: TrainingSession,
+        *,
+        request_id: str,
+        action_type: str,
+        target_code: str,
+        requested_value: dict[str, Any],
+        status: str,
+        rejection_reason: str | None,
+    ) -> OperatorAction:
+        action = OperatorAction(
+            request_id=request_id,
+            session_id=training_session.id,
+            sequence_no=training_session.last_sequence_no,
+            sim_time_ms=training_session.sim_time_ms,
+            action_type=action_type,
+            target_code=target_code,
+            requested_value_json=requested_value,
+            before_state_json={},
+            after_state_json={},
+            status=status,
+            rejection_reason=rejection_reason,
+        )
+        self._session.add(action)
+        return action
+
+    async def find_action(self, request_id: str) -> OperatorAction | None:
+        query = select(OperatorAction).where(OperatorAction.request_id == request_id)
+        action: OperatorAction | None = await self._session.scalar(query)
+        return action
+
+    async def accepted_actions(self, session_id: str) -> Sequence[OperatorAction]:
+        """Принятые, но ещё не применённые команды в порядке поступления."""
+
+        query = (
+            select(OperatorAction)
+            .where(
+                OperatorAction.session_id == session_id,
+                OperatorAction.status == ActionStatus.ACCEPTED,
+            )
+            .order_by(OperatorAction.sequence_no)
+        )
+        return (await self._session.scalars(query)).all()
 
     async def find_command_request(self, request_id: str) -> CommandRequest | None:
         request: CommandRequest | None = await self._session.get(CommandRequest, request_id)

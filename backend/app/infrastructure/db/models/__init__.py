@@ -23,6 +23,7 @@ from app.infrastructure.db.models.scenario import (
 from app.infrastructure.db.models.session import (
     SCHEMA_VERSION,
     CommandRequest,
+    OperatorAction,
     ProcessSnapshot,
     SessionEvent,
     SessionStageHistory,
@@ -38,6 +39,7 @@ __all__ = [
     "Equipment",
     "ExpectedActionRule",
     "InstallationVersion",
+    "OperatorAction",
     "ProcessSnapshot",
     "ProcessTag",
     "ScenarioLevel",

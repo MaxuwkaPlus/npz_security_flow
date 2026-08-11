@@ -5,15 +5,17 @@
 рассчитанного момента, а снимки остаются журналом для аудита и replay.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.application.runtime_config import disturbance_of, simulation_clock, twin_config
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
+from app.domain.commands import ActionStatus
 from app.domain.metrics import derived_values, visible_values
 from app.domain.sessions import SessionCommand, SessionStatus, apply_command
-from app.domain.twin import PlantState, TwinConfig, initial_state, step
-from app.infrastructure.db.models import ScenarioVersion, TrainingSession
+from app.domain.twin import Command, PlantState, TwinConfig, initial_state, step
+from app.infrastructure.db.models import OperatorAction, ScenarioVersion, TrainingSession
 from app.infrastructure.db.types import utcnow
 from app.infrastructure.db.unit_of_work import UnitOfWork
 
@@ -43,17 +45,23 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
         return _result(training_session, clock, applied=False, snapshot_written=False)
 
     config = twin_config(scenario)
-    # 1–3. Принятые команды оператора применяются внутри шага двойника.
+    before = plant_state(training_session, config)
+    # 1–3. Принятые команды берутся в порядке поступления и применяются этим шагом.
+    pending = await uow.sessions.accepted_actions(session_id)
     training_session.sim_time_ms = clock.advance(training_session.sim_time_ms)
     # 4–6. Скрытое возмущение, новое технологическое состояние и производные значения.
     plant = step(
-        plant_state(training_session, config),
+        before,
         config,
         disturbance_of(training_session),
         sim_time_ms=training_session.sim_time_ms,
         dt_ms=clock.tick_interval_ms,
+        commands=[
+            Command(action.action_type, action.target_code, action.requested_value_json) for action in pending
+        ],
     )
     training_session.runtime_state_json = plant.to_json()
+    _mark_applied(uow, training_session, pending, before, plant, config)
     # 7–9. Тревоги, переход этапа и оценка эффекта команд — следующие шаги этапа 3.
 
     snapshot_written = clock.is_snapshot_due(training_session.sim_time_ms)
@@ -69,6 +77,33 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
         _complete(uow, training_session)
 
     return _result(training_session, clock, applied=True, snapshot_written=snapshot_written)
+
+
+def _mark_applied(
+    uow: UnitOfWork,
+    training_session: TrainingSession,
+    actions: Sequence[OperatorAction],
+    before: PlantState,
+    after: PlantState,
+    config: TwinConfig,
+) -> None:
+    """Фиксирует применение команды и состояние установки до и после воздействия."""
+
+    if not actions:
+        return
+    before_values = visible_values(before, config)
+    after_values = visible_values(after, config)
+    for action in actions:
+        action.status = ActionStatus.APPLIED
+        action.before_state_json = before_values
+        action.after_state_json = after_values
+        uow.sessions.append_event(
+            training_session,
+            "action_applied",
+            "operator_action",
+            {"action_type": action.action_type, "target_code": action.target_code},
+            aggregate_id=action.id,
+        )
 
 
 def plant_state(training_session: TrainingSession, config: TwinConfig) -> PlantState:

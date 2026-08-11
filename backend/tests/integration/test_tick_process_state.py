@@ -1,12 +1,12 @@
 from sqlalchemy import select
 
-from app.application.runtime_config import disturbance_of, twin_config
+from app.application.actions import submit_action
 from app.application.sessions import create_session, transition_session
 from app.application.tick import plant_state, run_tick
 from app.domain.sessions import SessionCommand
-from app.domain.twin import START_FEED_PUMP, Command, TwinConfig, step
+from app.domain.twin import START_FEED_PUMP, TwinConfig
 from app.infrastructure.db.engine import Database
-from app.infrastructure.db.models import ProcessSnapshot, ScenarioVersion, TrainingSession
+from app.infrastructure.db.models import ProcessSnapshot, TrainingSession
 from app.infrastructure.db.unit_of_work import UnitOfWork
 from tests.conftest import SeededConfiguration
 
@@ -27,23 +27,14 @@ async def start_session(database: Database, configuration: SeededConfiguration) 
 
 
 async def start_feed_pump(database: Database, session_id: str) -> None:
-    """Команды оператора появятся на следующем шаге этапа; здесь насос пускается напрямую."""
-
     async with UnitOfWork(database.session_factory) as uow:
-        training_session = await uow.sessions.get(session_id)
-        assert training_session is not None
-        scenario = await uow.session.get(ScenarioVersion, training_session.scenario_version_id)
-        assert scenario is not None
-        config = twin_config(scenario)
-        plant = step(
-            plant_state(training_session, config),
-            config,
-            disturbance_of(training_session),
-            sim_time_ms=training_session.sim_time_ms,
-            dt_ms=0,
-            commands=[Command(START_FEED_PUMP, "N-1")],
+        await submit_action(
+            uow,
+            session_id,
+            request_id=f"pump-{session_id}",
+            action_type=START_FEED_PUMP,
+            target_code="N-1",
         )
-        training_session.runtime_state_json = plant.to_json()
 
 
 async def tick(database: Database, session_id: str, times: int) -> None:

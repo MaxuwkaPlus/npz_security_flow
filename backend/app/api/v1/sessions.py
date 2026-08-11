@@ -1,7 +1,9 @@
 from fastapi import APIRouter, status
 
 from app.api.deps import SessionRunnerDep, UnitOfWorkDep
+from app.api.v1.schemas.actions import ActionResponse, SubmitActionRequest
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
+from app.application.actions import submit_action
 from app.application.sessions import create_session, get_session_state, transition_session
 from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
 
@@ -32,6 +34,24 @@ async def get_state(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
     """Текущее состояние сессии; используется клиентом после разрыва WebSocket."""
 
     return SessionResponse.from_state(await get_session_state(uow, session_id))
+
+
+@router.post("/{session_id}/actions", response_model=ActionResponse, status_code=status.HTTP_202_ACCEPTED)
+async def post_action(
+    session_id: str, payload: SubmitActionRequest, runner: SessionRunnerDep
+) -> ActionResponse:
+    """Принимает команду оператора. Применяет её ближайший tick симуляции."""
+
+    async with runner.exclusive(session_id) as uow:
+        receipt = await submit_action(
+            uow,
+            session_id,
+            request_id=payload.request_id,
+            action_type=payload.action_type,
+            target_code=payload.target_code,
+            value=payload.value,
+        )
+    return ActionResponse.from_receipt(receipt)
 
 
 @router.post("/{session_id}/start", response_model=SessionResponse)

@@ -307,10 +307,23 @@ DISTURBANCES: tuple[DisturbanceSpec, ...] = (
     ),
 )
 
+BRANCH_CONTROLLER_CODES = [BRANCH_CONTROLLERS[branch] for branch in sorted(BRANCH_CONTROLLERS)]
+
+# Allowlist органов управления: всё, что вне списка и диапазонов, отклоняется сервером.
+CONTROL_ACTIONS: dict[str, Any] = {
+    "start_feed_pump": {"targets": ["N-1", "N-1A"]},
+    "switch_to_standby_pump": {"targets": ["N-1A"]},
+    "set_control_valve": {
+        "targets": BRANCH_CONTROLLER_CODES,
+        "value_bounds": {"opening_pct": [0.0, 100.0]},
+    },
+    "restore_flow_control": {"targets": BRANCH_CONTROLLER_CODES},
+}
+
 # Коэффициенты упрощённого двойника. Значения демонстрационные (§23 ТЗ).
 PROCESS_MODEL: dict[str, Any] = {
     "provisional": True,
-    "branch_controller_codes": [BRANCH_CONTROLLERS[branch] for branch in sorted(BRANCH_CONTROLLERS)],
+    "branch_controller_codes": BRANCH_CONTROLLER_CODES,
     "nominal_branch_flow_tph": NOMINAL_BRANCH_FLOW_TPH,
     "nominal_branch_pressure_bar": 5.0,
     "nominal_pump_discharge_pressure_bar": 6.0,
@@ -378,4 +391,5 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "disturbance_onset": DISTURBANCE_ONSET,
     "eligible_target_branches": DISTURBANCE_ELIGIBLE_BRANCHES,
     "process_model": PROCESS_MODEL,
+    "control_actions": CONTROL_ACTIONS,
 }

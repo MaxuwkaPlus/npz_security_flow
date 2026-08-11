@@ -139,3 +139,33 @@ class CommandRequest(Base):
     created_at: Mapped[Timestamp]
 
     session: Mapped[TrainingSession] = relationship()
+
+
+class OperatorAction(Base):
+    """Команда оператора. Журнал аудита: принятая команда не переписывается задним числом."""
+
+    __tablename__ = "operator_actions"
+    __table_args__ = (Index("ix_operator_actions_session_sim_time", "session_id", "sim_time_ms"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    request_id: Mapped[UuidStr] = mapped_column(unique=True)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    sequence_no: Mapped[int]
+    sim_time_ms: Mapped[int]
+    received_at: Mapped[Timestamp]
+    action_type: Mapped[Code]
+    target_code: Mapped[Code]
+    requested_value_json: Mapped[JsonDict]
+    before_state_json: Mapped[JsonDict]
+    after_state_json: Mapped[JsonDict]
+    status: Mapped[Code] = mapped_column(index=True)
+    rejection_reason: Mapped[str | None] = mapped_column(default=None)
+    # Классификацию correct/ineffective/dangerous выставляет оценка после окна наблюдения.
+    classification: Mapped[str | None] = mapped_column(default=None)
+    evaluation_pending_until_ms: Mapped[int | None] = mapped_column(default=None)
+    expected_rule_id: Mapped[str | None] = mapped_column(
+        ForeignKey("expected_action_rules.id", ondelete="SET NULL"), default=None
+    )
+    requires_verification: Mapped[bool] = mapped_column(default=False)
