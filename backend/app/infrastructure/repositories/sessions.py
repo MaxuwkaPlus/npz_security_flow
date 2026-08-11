@@ -97,6 +97,17 @@ class SessionRepository:
         snapshot: ProcessSnapshot | None = await self._session.scalar(query)
         return snapshot
 
+    async def snapshots_after(self, session_id: str, after_sequence_no: int) -> Sequence[ProcessSnapshot]:
+        query = (
+            select(ProcessSnapshot)
+            .where(
+                ProcessSnapshot.session_id == session_id,
+                ProcessSnapshot.sequence_no > after_sequence_no,
+            )
+            .order_by(ProcessSnapshot.sequence_no)
+        )
+        return (await self._session.scalars(query)).all()
+
     async def events_after(self, session_id: str, after_sequence_no: int) -> Sequence[SessionEvent]:
         query = (
             select(SessionEvent)

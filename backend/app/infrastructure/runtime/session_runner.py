@@ -12,11 +12,13 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from app.application.realtime import messages_after
 from app.application.tick import TickResult, run_tick
 from app.core.logging import session_id_var
 from app.domain.sessions import is_terminal
 from app.infrastructure.db.engine import Database
 from app.infrastructure.db.unit_of_work import UnitOfWork
+from app.infrastructure.realtime.hub import RealtimeHub
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +26,16 @@ logger = logging.getLogger(__name__)
 class SessionRunner:
     """Реестр фоновых задач симуляции и блокировок записи по сессиям."""
 
-    def __init__(self, database: Database, speed_factor: float) -> None:
+    def __init__(self, database: Database, speed_factor: float, hub: RealtimeHub) -> None:
         if speed_factor <= 0:
             raise ValueError("Множитель скорости симуляции должен быть положительным")
         self._database = database
         self._speed_factor = speed_factor
+        self._hub = hub
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        # До какого sequence_no сессии сообщения уже отправлены подписчикам.
+        self._published: dict[str, int] = {}
 
     @asynccontextmanager
     async def exclusive(self, session_id: str) -> AsyncIterator[UnitOfWork]:
@@ -52,6 +57,7 @@ class SessionRunner:
     async def stop(self, session_id: str) -> None:
         task = self._tasks.pop(session_id, None)
         self._locks.pop(session_id, None)
+        self._published.pop(session_id, None)
         if task is None or task.done():
             return
         task.cancel()
@@ -93,9 +99,30 @@ class SessionRunner:
 
         try:
             async with self.exclusive(session_id) as uow:
-                return await run_tick(uow, session_id)
+                published_upto = self._published.get(session_id, 0)
+                result = await run_tick(uow, session_id)
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("session_tick_failed")
             return None
+
+        await self.publish_new_messages(session_id, published_upto)
+        return result
+
+    async def publish_new_messages(self, session_id: str, after_sequence_no: int) -> None:
+        """Публикуются только зафиксированные факты: чтение идёт после коммита тика."""
+
+        if not self._hub.has_subscribers(session_id):
+            self._published[session_id] = await self._last_sequence_no(session_id)
+            return
+        async with UnitOfWork(self._database.session_factory) as uow:
+            messages = await messages_after(uow, session_id, after_sequence_no)
+        if messages:
+            self._hub.publish(session_id, messages)
+            self._published[session_id] = int(messages[-1]["sequence_no"])
+
+    async def _last_sequence_no(self, session_id: str) -> int:
+        async with UnitOfWork(self._database.session_factory) as uow:
+            training_session = await uow.sessions.get(session_id)
+            return training_session.last_sequence_no if training_session else 0
