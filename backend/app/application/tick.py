@@ -11,6 +11,7 @@ from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
 from app.application.runtime_config import disturbance_of, simulation_clock, twin_config
+from app.application.stages import advance_stage, load_stages
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
 from app.domain.commands import ActionStatus
@@ -24,6 +25,8 @@ from app.infrastructure.db.unit_of_work import UnitOfWork
 PLANT_KEY = "plant"
 ALARMS_KEY = "alarms"
 PENDING_KEY = "pending_since"
+STAGE_KEY = "stage"
+HOLDING_KEY = "holding_since_ms"
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,8 +79,10 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
         metrics,
         alarm_timers_of(training_session),
     )
-    training_session.runtime_state_json = _runtime_state(plant, alarm_timers)
-    # 8–9. Переход этапа и оценка эффекта команд — следующие шаги этапа 3.
+    # 8. Переход этапа. Оценка эффекта команд появится вместе с классификацией действий.
+    stages = await load_stages(uow, scenario.id)
+    decision = await advance_stage(uow, training_session, stages, metrics, stage_timer_of(training_session))
+    training_session.runtime_state_json = _runtime_state(plant, alarm_timers, decision.holding_since_ms)
 
     snapshot_written = clock.is_snapshot_due(training_session.sim_time_ms)
     if snapshot_written:
@@ -88,8 +93,9 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
             internal_state=plant.to_json(),
         )
 
-    if clock.is_finished(training_session.sim_time_ms):
-        _complete(uow, training_session)
+    scenario_finished = decision.changed and decision.next_stage_code is None
+    if scenario_finished or clock.is_finished(training_session.sim_time_ms):
+        _complete(uow, training_session, scenario_finished)
 
     return _result(training_session, clock, applied=True, snapshot_written=snapshot_written)
 
@@ -135,12 +141,25 @@ def alarm_timers_of(training_session: TrainingSession) -> dict[str, int]:
     return {code: int(since) for code, since in alarms.get(PENDING_KEY, {}).items()}
 
 
+def stage_timer_of(training_session: TrainingSession) -> int | None:
+    """С какого момента условие успеха этапа держится непрерывно."""
+
+    holding = training_session.runtime_state_json.get(STAGE_KEY, {}).get(HOLDING_KEY)
+    return int(holding) if holding is not None else None
+
+
 def initial_runtime_state(config: TwinConfig) -> dict[str, Any]:
-    return _runtime_state(initial_state(config), {})
+    return _runtime_state(initial_state(config), {}, None)
 
 
-def _runtime_state(plant: PlantState, alarm_timers: Mapping[str, int]) -> dict[str, Any]:
-    return {PLANT_KEY: plant.to_json(), ALARMS_KEY: {PENDING_KEY: dict(alarm_timers)}}
+def _runtime_state(
+    plant: PlantState, alarm_timers: Mapping[str, int], stage_holding_since_ms: int | None
+) -> dict[str, Any]:
+    return {
+        PLANT_KEY: plant.to_json(),
+        ALARMS_KEY: {PENDING_KEY: dict(alarm_timers)},
+        STAGE_KEY: {HOLDING_KEY: stage_holding_since_ms},
+    }
 
 
 async def _load_scenario(uow: UnitOfWork, training_session: TrainingSession) -> ScenarioVersion:
@@ -151,7 +170,7 @@ async def _load_scenario(uow: UnitOfWork, training_session: TrainingSession) -> 
     return scenario
 
 
-def _complete(uow: UnitOfWork, training_session: TrainingSession) -> None:
+def _complete(uow: UnitOfWork, training_session: TrainingSession, all_stages_passed: bool) -> None:
     training_session.status = apply_command(SessionStatus.RUNNING, SessionCommand.COMPLETE).status
     training_session.completed_at = utcnow()
     # final_outcome заполняет оценка прохождения на этапе 5: сейчас итог ещё не определён.
@@ -159,7 +178,7 @@ def _complete(uow: UnitOfWork, training_session: TrainingSession) -> None:
         training_session,
         "session_completed",
         "session",
-        {"reason": "scenario_duration_reached"},
+        {"reason": "all_stages_passed" if all_stages_passed else "scenario_duration_reached"},
     )
 
 
