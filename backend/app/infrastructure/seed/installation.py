@@ -122,6 +122,7 @@ FEED_EQUIPMENT = [
             TagSpec("min_branch_flow_ratio", "ratio", normal_min=0.95, warning_min=0.92, critical_min=0.88),
             TagSpec("flow_imbalance_ratio", "ratio", normal_max=0.05, warning_max=0.12, critical_max=0.20),
             TagSpec("lowest_flow_branch_code", "-", value_type="int"),
+            TagSpec("plant_operating_mode", "0/1", value_type="int", normal_min=1.0),
         ),
     ),
     EquipmentSpec(

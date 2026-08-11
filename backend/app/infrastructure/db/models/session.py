@@ -7,6 +7,7 @@ from app.infrastructure.db.base import Base
 from app.infrastructure.db.types import (
     Code,
     JsonDict,
+    Name,
     Timestamp,
     UtcDateTime,
     UuidStr,
@@ -169,3 +170,31 @@ class OperatorAction(Base):
         ForeignKey("expected_action_rules.id", ondelete="SET NULL"), default=None
     )
     requires_verification: Mapped[bool] = mapped_column(default=False)
+
+
+class SessionAlarm(Base):
+    """Экземпляр тревоги в сессии. Снятая тревога остаётся в журнале."""
+
+    __tablename__ = "session_alarms"
+    __table_args__ = (Index("ix_session_alarms_session_started", "session_id", "started_sim_time_ms"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    alarm_rule_id: Mapped[str | None] = mapped_column(
+        ForeignKey("alarm_rules.id", ondelete="SET NULL"), default=None
+    )
+    alarm_code: Mapped[Code] = mapped_column(index=True)
+    level: Mapped[Code]
+    equipment_code: Mapped[Code]
+    message: Mapped[Name]
+    ack_required: Mapped[bool] = mapped_column(default=True)
+    is_nuisance: Mapped[bool] = mapped_column(default=False)
+    started_sim_time_ms: Mapped[int]
+    acknowledged_sim_time_ms: Mapped[int | None] = mapped_column(default=None)
+    cleared_sim_time_ms: Mapped[int | None] = mapped_column(default=None)
+    acknowledged_by_operator_id: Mapped[str | None] = mapped_column(default=None)
+    source_event_id: Mapped[str | None] = mapped_column(
+        ForeignKey("session_events.id", ondelete="SET NULL"), default=None
+    )

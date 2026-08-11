@@ -5,19 +5,25 @@
 рассчитанного момента, а снимки остаются журналом для аудита и replay.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
+from app.application.alarms import load_alarm_rules, refresh_alarms
 from app.application.runtime_config import disturbance_of, simulation_clock, twin_config
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
 from app.domain.commands import ActionStatus
-from app.domain.metrics import derived_values, visible_values
+from app.domain.metrics import derived_values, rule_metrics, visible_values
 from app.domain.sessions import SessionCommand, SessionStatus, apply_command
 from app.domain.twin import Command, PlantState, TwinConfig, initial_state, step
 from app.infrastructure.db.models import OperatorAction, ScenarioVersion, TrainingSession
 from app.infrastructure.db.types import utcnow
 from app.infrastructure.db.unit_of_work import UnitOfWork
+
+PLANT_KEY = "plant"
+ALARMS_KEY = "alarms"
+PENDING_KEY = "pending_since"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,9 +66,18 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
             Command(action.action_type, action.target_code, action.requested_value_json) for action in pending
         ],
     )
-    training_session.runtime_state_json = plant.to_json()
     _mark_applied(uow, training_session, pending, before, plant, config)
-    # 7–9. Тревоги, переход этапа и оценка эффекта команд — следующие шаги этапа 3.
+    # 7. Тревоги по правилам версии сценария.
+    metrics = rule_metrics(plant, config)
+    alarm_timers = await refresh_alarms(
+        uow,
+        training_session,
+        await load_alarm_rules(uow, scenario.id),
+        metrics,
+        alarm_timers_of(training_session),
+    )
+    training_session.runtime_state_json = _runtime_state(plant, alarm_timers)
+    # 8–9. Переход этапа и оценка эффекта команд — следующие шаги этапа 3.
 
     snapshot_written = clock.is_snapshot_due(training_session.sim_time_ms)
     if snapshot_written:
@@ -109,8 +124,23 @@ def _mark_applied(
 def plant_state(training_session: TrainingSession, config: TwinConfig) -> PlantState:
     """Состояние двойника сессии; для новой сессии — исходное состояние установки."""
 
-    stored = training_session.runtime_state_json
+    stored = training_session.runtime_state_json.get(PLANT_KEY)
     return PlantState.from_json(stored) if stored else initial_state(config)
+
+
+def alarm_timers_of(training_session: TrainingSession) -> dict[str, int]:
+    """Сколько держится ещё не включённая тревога: таймеры живут между тиками."""
+
+    alarms = training_session.runtime_state_json.get(ALARMS_KEY, {})
+    return {code: int(since) for code, since in alarms.get(PENDING_KEY, {}).items()}
+
+
+def initial_runtime_state(config: TwinConfig) -> dict[str, Any]:
+    return _runtime_state(initial_state(config), {})
+
+
+def _runtime_state(plant: PlantState, alarm_timers: Mapping[str, int]) -> dict[str, Any]:
+    return {PLANT_KEY: plant.to_json(), ALARMS_KEY: {PENDING_KEY: dict(alarm_timers)}}
 
 
 async def _load_scenario(uow: UnitOfWork, training_session: TrainingSession) -> ScenarioVersion:

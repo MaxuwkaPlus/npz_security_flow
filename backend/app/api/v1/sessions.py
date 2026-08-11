@@ -2,8 +2,10 @@ from fastapi import APIRouter, status
 
 from app.api.deps import SessionRunnerDep, UnitOfWorkDep
 from app.api.v1.schemas.actions import ActionResponse, SubmitActionRequest
+from app.api.v1.schemas.alarms import AcknowledgeAlarmRequest, AlarmResponse
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
 from app.application.actions import submit_action
+from app.application.alarms import acknowledge_alarm, list_alarms
 from app.application.sessions import create_session, get_session_state, transition_session
 from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
 
@@ -52,6 +54,27 @@ async def post_action(
             value=payload.value,
         )
     return ActionResponse.from_receipt(receipt)
+
+
+@router.get("/{session_id}/alarms", response_model=list[AlarmResponse])
+async def get_alarms(session_id: str, uow: UnitOfWorkDep) -> list[AlarmResponse]:
+    """Активные тревоги сессии; используется клиентом при переподключении."""
+
+    return [AlarmResponse.from_view(view) for view in await list_alarms(uow, session_id)]
+
+
+@router.post("/{session_id}/alarms/{alarm_id}/acknowledge", response_model=AlarmResponse)
+async def post_alarm_acknowledge(
+    session_id: str,
+    alarm_id: str,
+    payload: AcknowledgeAlarmRequest,
+    runner: SessionRunnerDep,
+) -> AlarmResponse:
+    async with runner.exclusive(session_id) as uow:
+        training_session = await uow.sessions.get(session_id)
+        operator_id = training_session.operator_id if training_session else ""
+        view = await acknowledge_alarm(uow, session_id, alarm_id, operator_id=operator_id)
+    return AlarmResponse.from_view(view)
 
 
 @router.post("/{session_id}/start", response_model=SessionResponse)

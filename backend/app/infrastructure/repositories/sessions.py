@@ -11,6 +11,7 @@ from app.infrastructure.db.models import (
     CommandRequest,
     OperatorAction,
     ProcessSnapshot,
+    SessionAlarm,
     SessionEvent,
     SessionStageHistory,
     TrainingSession,
@@ -170,6 +171,42 @@ class SessionRepository:
             .order_by(OperatorAction.sequence_no)
         )
         return (await self._session.scalars(query)).all()
+
+    async def active_alarms(self, session_id: str) -> Sequence[SessionAlarm]:
+        query = (
+            select(SessionAlarm)
+            .where(SessionAlarm.session_id == session_id, SessionAlarm.cleared_sim_time_ms.is_(None))
+            .order_by(SessionAlarm.started_sim_time_ms)
+        )
+        return (await self._session.scalars(query)).all()
+
+    async def get_alarm(self, alarm_id: str) -> SessionAlarm | None:
+        alarm: SessionAlarm | None = await self._session.get(SessionAlarm, alarm_id)
+        return alarm
+
+    def raise_alarm(
+        self,
+        training_session: TrainingSession,
+        *,
+        alarm_rule_id: str | None,
+        alarm_code: str,
+        level: str,
+        equipment_code: str,
+        message: str,
+        ack_required: bool,
+    ) -> SessionAlarm:
+        alarm = SessionAlarm(
+            session_id=training_session.id,
+            alarm_rule_id=alarm_rule_id,
+            alarm_code=alarm_code,
+            level=level,
+            equipment_code=equipment_code,
+            message=message,
+            ack_required=ack_required,
+            started_sim_time_ms=training_session.sim_time_ms,
+        )
+        self._session.add(alarm)
+        return alarm
 
     async def find_command_request(self, request_id: str) -> CommandRequest | None:
         request: CommandRequest | None = await self._session.get(CommandRequest, request_id)

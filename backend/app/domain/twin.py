@@ -39,6 +39,8 @@ class TwinConfig:
     temperature_time_constant_ms: int = 90_000
     warmup_time_constant_ms: int = 300_000
     warmup_min_flow_ratio: float = 0.5
+    # Расход, при котором установка считается выведенной на режим.
+    operating_mode_flow_ratio: float = 0.95
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "TwinConfig":
@@ -107,6 +109,9 @@ class PlantState:
     warmup: float
     severity: float
     corrected: bool
+    # Один раз выведенная на режим установка остаётся «в режиме»: дальнейшее падение
+    # расхода — уже отклонение, а не продолжающийся пуск.
+    operating_mode: bool
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -126,6 +131,7 @@ class PlantState:
             "warmup": self.warmup,
             "severity": self.severity,
             "corrected": self.corrected,
+            "operating_mode": self.operating_mode,
         }
 
     @classmethod
@@ -147,6 +153,7 @@ class PlantState:
             warmup=float(data["warmup"]),
             severity=float(data["severity"]),
             corrected=bool(data["corrected"]),
+            operating_mode=bool(data.get("operating_mode", False)),
         )
 
 
@@ -168,6 +175,7 @@ def initial_state(config: TwinConfig) -> PlantState:
         warmup=0.0,
         severity=0.0,
         corrected=False,
+        operating_mode=False,
     )
 
 
@@ -199,12 +207,14 @@ def step(
         dt_ms,
         config.warmup_time_constant_ms,
     )
+    min_flow_ratio = min(branch.flow_tph for branch in branches) / config.nominal_branch_flow_tph
     return replace(
         state,
         branches=branches,
         pump_discharge_pressure_bar=pump_pressure,
         warmup=warmup,
         severity=severity,
+        operating_mode=state.operating_mode or min_flow_ratio >= config.operating_mode_flow_ratio,
     )
 
 

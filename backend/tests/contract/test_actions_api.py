@@ -64,7 +64,7 @@ async def test_accepted_command_is_applied_by_the_next_tick(
     assert action.status == "applied"
     assert action.before_state_json["branch_1_flow_tph"] == 0.0
     assert action.after_state_json["feed_pump_state"] == "RUNNING"
-    assert stored.runtime_state_json["branches"][0]["flow_tph"] > 20.0
+    assert stored.runtime_state_json["plant"]["branches"][0]["flow_tph"] > 20.0
 
 
 async def test_valve_command_changes_branch_flow(
@@ -86,7 +86,7 @@ async def test_valve_command_changes_branch_flow(
     async with database.session_factory() as session:
         stored = await session.get(TrainingSession, session_id)
     assert stored is not None
-    branches = stored.runtime_state_json["branches"]
+    branches = stored.runtime_state_json["plant"]["branches"]
     assert branches[1]["flow_tph"] < 45.0
     assert branches[0]["flow_tph"] > 95.0
 
@@ -140,7 +140,7 @@ async def test_rejected_command_does_not_change_the_plant(
     async with database.session_factory() as session:
         stored = await session.get(TrainingSession, session_id)
     assert stored is not None
-    assert stored.runtime_state_json["pump_running"] is False
+    assert stored.runtime_state_json["plant"]["pump_running"] is False
 
 
 async def test_repeated_request_id_does_not_create_second_action(

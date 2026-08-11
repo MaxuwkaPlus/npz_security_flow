@@ -52,6 +52,8 @@ def derived_values(state: PlantState, config: TwinConfig) -> dict[str, float]:
         "t11_max_temp_c": round(max_temp, 2),
         "t11_min_temp_c": round(min(temperatures), 2),
         "t11_temperature_margin_norm": round(margin, 4),
+        # Признак «установка выведена на режим»: до него отклонение расхода — это пуск.
+        "plant_operating_mode": 1.0 if state.operating_mode else 0.0,
     }
 
 

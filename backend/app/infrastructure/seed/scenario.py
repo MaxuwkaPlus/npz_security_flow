@@ -207,7 +207,10 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "flow_deviation_branch",
         "L1",
         "FEED-SYSTEM",
-        rule(condition("min_branch_flow_ratio", "<", 0.92)),
+        rule(
+            condition("plant_operating_mode", ">=", 1.0),
+            condition("min_branch_flow_ratio", "<", 0.92),
+        ),
         rule(condition("min_branch_flow_ratio", ">=", 0.95)),
         "Отклонение расхода сырьевой ветви",
     ),
@@ -215,7 +218,10 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "feed_flow_imbalance",
         "L2",
         "FEED-SYSTEM",
-        rule(condition("flow_imbalance_ratio", ">", 0.12)),
+        rule(
+            condition("plant_operating_mode", ">=", 1.0),
+            condition("flow_imbalance_ratio", ">", 0.12),
+        ),
         rule(condition("flow_imbalance_ratio", "<=", 0.08)),
         "Рассогласование трёх потоков сырой нефти",
     ),
