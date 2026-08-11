@@ -5,6 +5,7 @@ from app.domain.sessions import SessionCommand
 from app.infrastructure.db.engine import Database
 from app.infrastructure.db.models import TrainingSession
 from app.infrastructure.db.unit_of_work import UnitOfWork
+from app.infrastructure.realtime.hub import RealtimeHub
 from app.infrastructure.runtime.session_runner import SessionRunner
 from tests.conftest import SeededConfiguration
 
@@ -44,7 +45,7 @@ async def test_runner_advances_simulation_time_in_background(
     database: Database, configuration: SeededConfiguration
 ) -> None:
     session_id = await start_session(database, configuration)
-    runner = SessionRunner(database, SPEED_FACTOR)
+    runner = SessionRunner(database, SPEED_FACTOR, RealtimeHub())
 
     runner.start(session_id)
     try:
@@ -62,7 +63,7 @@ async def test_repeated_start_does_not_create_second_task(
     """Два тика одной сессии не должны выполняться параллельно."""
 
     session_id = await start_session(database, configuration)
-    runner = SessionRunner(database, SPEED_FACTOR)
+    runner = SessionRunner(database, SPEED_FACTOR, RealtimeHub())
 
     runner.start(session_id)
     runner.start(session_id)
@@ -78,7 +79,7 @@ async def test_stopped_runner_freezes_simulation_time(
     database: Database, configuration: SeededConfiguration
 ) -> None:
     session_id = await start_session(database, configuration)
-    runner = SessionRunner(database, SPEED_FACTOR)
+    runner = SessionRunner(database, SPEED_FACTOR, RealtimeHub())
 
     runner.start(session_id)
     await wait_until_sim_time(database, session_id, 2_000)
