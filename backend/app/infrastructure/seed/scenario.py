@@ -10,6 +10,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.domain.rules import Rule, condition, rule
+from app.infrastructure.seed.installation import (
+    BRANCH_CONTROLLERS,
+    NOMINAL_BRANCH_FLOW_TPH,
+    T11_TEMPERATURE_LIMIT_C,
+)
 
 SCENARIO_CODE = "ELOU-AVT-FULL-RUN"
 SCENARIO_VERSION = 1
@@ -269,6 +274,9 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
 DISTURBANCE_ONSET = {"earliest_sim_time_ms": 3_060_000, "latest_sim_time_ms": 3_180_000}
 DISTURBANCE_ELIGIBLE_BRANCHES = [1, 2, 3]
 
+# Каждая причина действует через собственный наблюдаемый признак: потеря
+# производительности насоса видна по давлению, заедание регулятора — по расхождению
+# командного и фактического положения. Именно это различие оператор и диагностирует.
 DISTURBANCES: tuple[DisturbanceSpec, ...] = (
     DisturbanceSpec(
         "feed_pump_capacity_loss",
@@ -288,7 +296,8 @@ DISTURBANCES: tuple[DisturbanceSpec, ...] = (
         "valve_stiction",
         development={
             "ramp_duration_ms": 360_000,
-            "target_branch_flow_loss": 0.38,
+            # Расход падает не сам по себе, а вслед за фактическим положением регулятора.
+            "target_branch_flow_loss": 0.0,
             "other_branch_flow_gain": 0.015,
             "target_branch_pressure_drop_bar": 0.75,
             "pump_discharge_pressure_drop_bar": -0.25,
@@ -297,6 +306,25 @@ DISTURBANCES: tuple[DisturbanceSpec, ...] = (
         recovery={"correct_action_type": "restore_flow_control", "recovery_duration_ms": 180_000},
     ),
 )
+
+# Коэффициенты упрощённого двойника. Значения демонстрационные (§23 ТЗ).
+PROCESS_MODEL: dict[str, Any] = {
+    "provisional": True,
+    "branch_controller_codes": [BRANCH_CONTROLLERS[branch] for branch in sorted(BRANCH_CONTROLLERS)],
+    "nominal_branch_flow_tph": NOMINAL_BRANCH_FLOW_TPH,
+    "nominal_branch_pressure_bar": 5.0,
+    "nominal_pump_discharge_pressure_bar": 6.0,
+    "ambient_temp_c": 25.0,
+    "t11_duty_c": 105.0,
+    "t11_flow_sensitivity": 0.35,
+    "t11_temperature_limit_c": T11_TEMPERATURE_LIMIT_C,
+    "t11_temperature_margin_span_c": 15.0,
+    "flow_time_constant_ms": 60_000,
+    "pressure_time_constant_ms": 20_000,
+    "temperature_time_constant_ms": 90_000,
+    "warmup_time_constant_ms": 300_000,
+    "warmup_min_flow_ratio": 0.5,
+}
 
 # Эталонная последовательность действий оператора (§10.1 ТЗ, §40 сценария).
 EXPECTED_ACTIONS: tuple[ExpectedActionSpec, ...] = (
@@ -349,4 +377,5 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "situation_code": "feed_branch_flow_loss",
     "disturbance_onset": DISTURBANCE_ONSET,
     "eligible_target_branches": DISTURBANCE_ELIGIBLE_BRANCHES,
+    "process_model": PROCESS_MODEL,
 }
