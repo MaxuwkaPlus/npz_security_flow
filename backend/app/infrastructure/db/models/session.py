@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.db.base import Base
@@ -42,6 +42,8 @@ class TrainingSession(Base):
     random_seed: Mapped[int]
     # Целевая ветвь, момент и причина возмущения. Никогда не сериализуется в операторский DTO.
     hidden_runtime_config_json: Mapped[JsonDict]
+    # Текущее состояние цифрового двойника: из него симуляция продолжается после перезапуска.
+    runtime_state_json: Mapped[JsonDict] = mapped_column(default=dict, server_default=text("'{}'"))
     final_outcome: Mapped[str | None] = mapped_column(default=None)
     started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
     paused_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)

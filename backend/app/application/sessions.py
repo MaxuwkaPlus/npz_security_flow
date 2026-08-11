@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.application.runtime_config import twin_config
 from app.core.errors import ConflictError, NotFoundError, PreconditionFailedError
 from app.domain.disturbance import DisturbanceOption, select_disturbance
 from app.domain.sessions import (
@@ -21,6 +22,7 @@ from app.domain.sessions import (
     apply_command,
     is_terminal,
 )
+from app.domain.twin import initial_state
 from app.domain.versioning import PublicationStatus
 from app.infrastructure.db.models import ScenarioLevel, ScenarioVersion, ScoringPolicyVersion, TrainingSession
 from app.infrastructure.db.types import utcnow
@@ -108,6 +110,7 @@ async def create_session(
         current_stage_code=_first_stage_code(scenario),
         random_seed=seed,
         hidden_runtime_config_json={"disturbance": disturbance.to_json()},
+        runtime_state_json=initial_state(twin_config(scenario)).to_json(),
     )
     uow.sessions.add(training_session)
     await uow.flush()
