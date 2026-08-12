@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
-from app.application.runtime_config import disturbance_of, safety_policy, simulation_clock, twin_config
+from app.application.runtime_config import (
+    disturbance_of,
+    nuisance_policy,
+    safety_policy,
+    simulation_clock,
+    twin_config,
+)
 from app.application.stages import advance_stage, load_stages
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
@@ -23,7 +29,12 @@ from app.domain.safety import (
 )
 from app.domain.sessions import SessionCommand, SessionStatus, apply_command
 from app.domain.twin import PlantState, TwinConfig, initial_state, step
-from app.infrastructure.db.models import OperatorAction, ScenarioVersion, TrainingSession
+from app.infrastructure.db.models import (
+    OperatorAction,
+    ScenarioLevel,
+    ScenarioVersion,
+    TrainingSession,
+)
 from app.infrastructure.db.types import utcnow
 from app.infrastructure.db.unit_of_work import UnitOfWork
 
@@ -77,12 +88,15 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
     _mark_applied(uow, training_session, pending, before, plant, config, safety_policy(scenario))
     # 7. Тревоги по правилам версии сценария.
     metrics = rule_metrics(plant, config)
+    level = await uow.session.get(ScenarioLevel, training_session.scenario_level_id)
     alarm_timers = await refresh_alarms(
         uow,
         training_session,
         await load_alarm_rules(uow, scenario.id),
         metrics,
         alarm_timers_of(training_session),
+        nuisance=nuisance_policy(scenario, level) if level is not None else None,
+        tick_interval_ms=clock.tick_interval_ms,
     )
     # 8. Переход этапа. Оценка эффекта команд появится вместе с классификацией действий.
     stages = await load_stages(uow, scenario.id)

@@ -14,6 +14,8 @@ from app.domain.rules import Rule
 
 
 class AlarmLevel(StrEnum):
+    # L0 — второстепенная тревога: методический шум, не технологический признак.
+    L0 = "L0"
     L1 = "L1"
     L2 = "L2"
     L3 = "L3"

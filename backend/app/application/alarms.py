@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.core.errors import ConflictError, NotFoundError
 from app.domain.alarms import AlarmRule, AlarmState, evaluate
+from app.domain.nuisance import NuisancePolicy
 from app.domain.rules import parse_rule
 from app.domain.sessions import SessionStatus, accepts_operator_input
 from app.infrastructure.db.models import AlarmRule as AlarmRuleRow
@@ -63,10 +64,13 @@ async def refresh_alarms(
     rules: Sequence[tuple[str, AlarmRule]],
     metrics: Mapping[str, float],
     pending_since: Mapping[str, int],
+    nuisance: NuisancePolicy | None = None,
+    tick_interval_ms: int = 1_000,
 ) -> dict[str, int]:
     """Включает и снимает тревоги по правилам. Возвращает новое состояние таймеров."""
 
     active = await uow.sessions.active_alarms(training_session.id)
+    _clear_expired_nuisance(uow, training_session, active, nuisance)
     decision = evaluate(
         [rule for _, rule in rules],
         metrics,
@@ -109,7 +113,67 @@ async def refresh_alarms(
             aggregate_id=alarm.id,
         )
 
+    if nuisance is not None:
+        _raise_due_nuisance(uow, training_session, active, nuisance, tick_interval_ms)
     return dict(decision.pending_since)
+
+
+def _clear_expired_nuisance(
+    uow: UnitOfWork,
+    training_session: TrainingSession,
+    active: Sequence[SessionAlarm],
+    nuisance: NuisancePolicy | None,
+) -> None:
+    """Второстепенная тревога живёт заданное время и гаснет сама."""
+
+    if nuisance is None:
+        return
+    for alarm in active:
+        if not alarm.is_nuisance or alarm.cleared_sim_time_ms is not None:
+            continue
+        if training_session.sim_time_ms - alarm.started_sim_time_ms >= nuisance.duration_ms:
+            alarm.cleared_sim_time_ms = training_session.sim_time_ms
+            uow.sessions.append_event(
+                training_session,
+                "alarm_cleared",
+                "alarm",
+                {"alarm_code": alarm.alarm_code, "is_nuisance": True},
+                aggregate_id=alarm.id,
+            )
+
+
+def _raise_due_nuisance(
+    uow: UnitOfWork,
+    training_session: TrainingSession,
+    active: Sequence[SessionAlarm],
+    nuisance: NuisancePolicy,
+    tick_interval_ms: int,
+) -> None:
+    active_codes = [
+        alarm.alarm_code for alarm in active if alarm.is_nuisance and alarm.cleared_sim_time_ms is None
+    ]
+    due = nuisance.due(
+        training_session.random_seed, training_session.sim_time_ms, tick_interval_ms, active_codes
+    )
+    if due is None:
+        return
+    alarm = uow.sessions.raise_alarm(
+        training_session,
+        alarm_rule_id=None,
+        alarm_code=due.code,
+        level=nuisance.level,
+        equipment_code=due.equipment_code,
+        message=due.message,
+        ack_required=True,
+        is_nuisance=True,
+    )
+    event = uow.sessions.append_event(
+        training_session,
+        "alarm_raised",
+        "alarm",
+        {"alarm_code": due.code, "level": nuisance.level, "is_nuisance": True},
+    )
+    alarm.source_event_id = event.id
 
 
 async def acknowledge_alarm(

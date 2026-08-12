@@ -205,6 +205,7 @@ class SessionRepository:
         equipment_code: str,
         message: str,
         ack_required: bool,
+        is_nuisance: bool = False,
     ) -> SessionAlarm:
         alarm = SessionAlarm(
             session_id=training_session.id,
@@ -214,6 +215,7 @@ class SessionRepository:
             equipment_code=equipment_code,
             message=message,
             ack_required=ack_required,
+            is_nuisance=is_nuisance,
             started_sim_time_ms=training_session.sim_time_ms,
         )
         self._session.add(alarm)

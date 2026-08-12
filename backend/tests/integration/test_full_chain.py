@@ -125,20 +125,28 @@ async def latest_snapshot(database: Database, session_id: str) -> ProcessSnapsho
     return snapshot
 
 
-async def alarm_levels(database: Database, session_id: str) -> set[str]:
+async def process_alarms(database: Database, session_id: str) -> list[SessionAlarm]:
+    """Только технологические тревоги: второстепенные помехи — методический шум."""
+
     async with database.session_factory() as session:
-        alarms = (
-            await session.scalars(select(SessionAlarm).where(SessionAlarm.session_id == session_id))
-        ).all()
-    return {alarm.level for alarm in alarms}
+        return list(
+            (
+                await session.scalars(
+                    select(SessionAlarm).where(
+                        SessionAlarm.session_id == session_id,
+                        SessionAlarm.is_nuisance.is_(False),
+                    )
+                )
+            ).all()
+        )
+
+
+async def alarm_levels(database: Database, session_id: str) -> set[str]:
+    return {alarm.level for alarm in await process_alarms(database, session_id)}
 
 
 async def alarm_codes(database: Database, session_id: str) -> set[str]:
-    async with database.session_factory() as session:
-        alarms = (
-            await session.scalars(select(SessionAlarm).where(SessionAlarm.session_id == session_id))
-        ).all()
-    return {alarm.alarm_code for alarm in alarms}
+    return {alarm.alarm_code for alarm in await process_alarms(database, session_id)}
 
 
 async def test_started_plant_reaches_normal_regime_end_to_end(

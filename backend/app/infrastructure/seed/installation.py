@@ -114,6 +114,12 @@ def heat_exchanger_equipment() -> list[EquipmentSpec]:
 FEED_EQUIPMENT = [
     EquipmentSpec("TANK-FARM", "tank_farm", "Резервуарный парк"),
     EquipmentSpec(
+        "AUX-SYSTEM",
+        "unit_section",
+        "Вспомогательные системы",
+        metadata={"purpose": "источник второстепенных тревог"},
+    ),
+    EquipmentSpec(
         "FEED-SYSTEM",
         "unit_section",
         "Сырьевая часть",

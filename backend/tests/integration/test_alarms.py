@@ -63,19 +63,26 @@ async def tick(database: Database, session_id: str, times: int) -> None:
 
 
 async def alarms_of(database: Database, session_id: str) -> list[SessionAlarm]:
+    """Технологические тревоги сессии. Второстепенные помехи здесь не учитываются."""
+
     async with database.session_factory() as session:
         return list(
             (
                 await session.scalars(
                     select(SessionAlarm)
-                    .where(SessionAlarm.session_id == session_id)
+                    .where(
+                        SessionAlarm.session_id == session_id,
+                        SessionAlarm.is_nuisance.is_(False),
+                    )
                     .order_by(SessionAlarm.started_sim_time_ms)
                 )
             ).all()
         )
 
 
-async def test_stable_plant_raises_no_alarms(database: Database, configuration: SeededConfiguration) -> None:
+async def test_stable_plant_raises_no_process_alarms(
+    database: Database, configuration: SeededConfiguration
+) -> None:
     session_id = await prepared_session(database, configuration)
 
     await tick(database, session_id, times=250)
@@ -176,8 +183,39 @@ async def test_active_alarm_list_exposes_no_hidden_fields(
     await tick(database, session_id, times=420)
 
     async with UnitOfWork(database.session_factory) as uow:
-        views = await list_alarms(uow, session_id)
+        views = [view for view in await list_alarms(uow, session_id) if not view.is_nuisance]
 
     assert views[0].alarm_code == "flow_deviation_branch"
     assert views[0].equipment_code == "FEED-SYSTEM"
     assert all(view.state == "active_unacknowledged" for view in views)
+
+
+async def test_nuisance_alarms_appear_and_clear_by_themselves(
+    database: Database, configuration: SeededConfiguration
+) -> None:
+    """Второстепенные тревоги создают фон, гаснут сами и не смешиваются с технологическими."""
+
+    session_id = await prepared_session(database, configuration)
+
+    await tick(database, session_id, times=250)
+
+    async with database.session_factory() as session:
+        nuisance = (
+            await session.scalars(
+                select(SessionAlarm).where(
+                    SessionAlarm.session_id == session_id,
+                    SessionAlarm.is_nuisance.is_(True),
+                )
+            )
+        ).all()
+
+    assert nuisance, "на первом уровне сложности фон помех всё равно должен появляться"
+    assert {alarm.level for alarm in nuisance} == {"L0"}
+    assert {alarm.equipment_code for alarm in nuisance} == {"AUX-SYSTEM"}
+    assert await alarms_of(database, session_id) == []
+
+    await tick(database, session_id, times=200)
+    async with database.session_factory() as session:
+        first = await session.get(SessionAlarm, nuisance[0].id)
+    assert first is not None
+    assert first.cleared_sim_time_ms is not None

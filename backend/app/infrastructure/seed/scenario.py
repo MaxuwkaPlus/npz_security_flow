@@ -351,6 +351,22 @@ CONTROL_ACTIONS: dict[str, Any] = {
     },
 }
 
+# Второстепенные тревоги вспомогательных систем: методический шум, интенсивность
+# которого задаёт уровень сложности. Технологического смысла для сценария не несут.
+NUISANCE_ALARMS: dict[str, Any] = {
+    "provisional": True,
+    "level": "L0",
+    "duration_ms": 120_000,
+    "alarms": [
+        {
+            "code": f"nuisance_auxiliary_{index}",
+            "equipment_code": "AUX-SYSTEM",
+            "message": f"Второстепенная тревога вспомогательной системы №{index}",
+        }
+        for index in range(1, 5)
+    ],
+}
+
 # Коэффициенты упрощённого двойника. Значения демонстрационные (§23 ТЗ).
 PROCESS_MODEL: dict[str, Any] = {
     "provisional": True,
@@ -473,6 +489,7 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "eligible_target_branches": DISTURBANCE_ELIGIBLE_BRANCHES,
     "process_model": PROCESS_MODEL,
     "control_actions": CONTROL_ACTIONS,
+    "nuisance_alarms": NUISANCE_ALARMS,
     # Опасная компенсация: наращивание тепла при уже упавшем расходе сырья.
     "safety": {"provisional": True, "feed_ratio_threshold": 0.95},
 }

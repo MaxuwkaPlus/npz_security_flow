@@ -5,9 +5,10 @@
 
 from app.domain.clock import SimulationClock
 from app.domain.commands import ControlPolicy
+from app.domain.nuisance import NuisancePolicy
 from app.domain.safety import SafetyPolicy
 from app.domain.twin import Disturbance, TwinConfig
-from app.infrastructure.db.models import ScenarioVersion, TrainingSession
+from app.infrastructure.db.models import ScenarioLevel, ScenarioVersion, TrainingSession
 
 DEFAULT_TICK_INTERVAL_MS = 1_000
 DEFAULT_SNAPSHOT_INTERVAL_MS = 5_000
@@ -28,6 +29,14 @@ def twin_config(scenario: ScenarioVersion) -> TwinConfig:
 
 def control_policy(scenario: ScenarioVersion) -> ControlPolicy:
     return ControlPolicy.from_json(scenario.config_json.get("control_actions", {}))
+
+
+def nuisance_policy(scenario: ScenarioVersion, level: ScenarioLevel) -> NuisancePolicy:
+    """Интенсивность помех берётся из уровня сложности, состав — из версии сценария."""
+
+    return NuisancePolicy.from_json(
+        scenario.config_json.get("nuisance_alarms", {}), level.nuisance_alarm_rate
+    )
 
 
 def safety_policy(scenario: ScenarioVersion) -> SafetyPolicy:
