@@ -29,13 +29,19 @@ def apply_sqlite_pragmas(engine: Engine, busy_timeout_ms: int) -> None:
         cursor.close()
 
 
+def ensure_sqlite_directory(database_url: str) -> None:
+    """Каталог файловой БД создаётся до подключения: SQLite сам его не заводит."""
+
+    file_path = sqlite_file_path(database_url)
+    if file_path is not None:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+
 class Database:
     """Async engine и фабрика сессий для файловой SQLite."""
 
     def __init__(self, settings: Settings) -> None:
-        file_path = sqlite_file_path(settings.database_url)
-        if file_path is not None:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_sqlite_directory(settings.database_url)
         self.engine: AsyncEngine = create_async_engine(settings.database_url)
         apply_sqlite_pragmas(self.engine.sync_engine, settings.sqlite_busy_timeout_ms)
         self.session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(

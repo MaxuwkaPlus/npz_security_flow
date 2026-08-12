@@ -6,7 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.infrastructure.db.engine import apply_sqlite_pragmas
+from app.infrastructure.db.engine import apply_sqlite_pragmas, ensure_sqlite_directory
 from app.infrastructure.db.models import Base
 from app.infrastructure.db.types import UtcDateTime
 from app.settings import Settings
@@ -58,6 +58,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
+    ensure_sqlite_directory(config.get_main_option("sqlalchemy.url") or "")
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
