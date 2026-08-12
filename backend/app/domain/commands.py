@@ -7,7 +7,7 @@ Allowlist органов управления и диапазоны значен
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -23,6 +23,15 @@ class RejectionReason(StrEnum):
     TARGET_NOT_ALLOWED = "target_not_allowed"
     MISSING_VALUE = "missing_value"
     VALUE_OUT_OF_RANGE = "value_out_of_range"
+
+
+@dataclass(frozen=True, slots=True)
+class Command:
+    """Принятая команда в виде, понятном расчёту установки."""
+
+    action_type: str
+    target_code: str
+    value: Mapping[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

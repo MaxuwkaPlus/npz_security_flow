@@ -14,10 +14,10 @@ from app.application.runtime_config import disturbance_of, simulation_clock, twi
 from app.application.stages import advance_stage, load_stages
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
-from app.domain.commands import ActionStatus
+from app.domain.commands import ActionStatus, Command
 from app.domain.metrics import derived_values, rule_metrics, visible_values
 from app.domain.sessions import SessionCommand, SessionStatus, apply_command
-from app.domain.twin import Command, PlantState, TwinConfig, initial_state, step
+from app.domain.twin import PlantState, TwinConfig, initial_state, step
 from app.infrastructure.db.models import OperatorAction, ScenarioVersion, TrainingSession
 from app.infrastructure.db.types import utcnow
 from app.infrastructure.db.unit_of_work import UnitOfWork

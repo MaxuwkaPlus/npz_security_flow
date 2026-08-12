@@ -12,6 +12,7 @@ from typing import Any
 from app.domain.rules import Rule, condition, rule
 from app.infrastructure.seed.installation import (
     BRANCH_CONTROLLERS,
+    ELOU_LOW_LEVEL_INTERLOCK_MM,
     NOMINAL_BRANCH_FLOW_TPH,
     T11_TEMPERATURE_LIMIT_C,
 )
@@ -324,6 +325,8 @@ CONTROL_ACTIONS: dict[str, Any] = {
         "value_bounds": {"opening_pct": [0.0, 100.0]},
     },
     "restore_flow_control": {"targets": BRANCH_CONTROLLER_CODES},
+    # Вода на смешение: 5–10 % от расхода нефти по регламенту, ввод ограничен 20 %.
+    "set_wash_water": {"targets": ["ELOU"], "value_bounds": {"ratio": [0.0, 0.20]}},
 }
 
 # Коэффициенты упрощённого двойника. Значения демонстрационные (§23 ТЗ).
@@ -343,6 +346,22 @@ PROCESS_MODEL: dict[str, Any] = {
     "temperature_time_constant_ms": 90_000,
     "warmup_time_constant_ms": 300_000,
     "warmup_min_flow_ratio": 0.5,
+    "downstream": {
+        "provisional": True,
+        "section_min_load_ratio": 0.10,
+        "elou_load_time_constant_ms": 60_000,
+        "elou_stage2_time_constant_ms": 30_000,
+        "elou_imbalance_transfer": 0.92,
+        "elou_stage1_base_level_mm": 3820.0,
+        "elou_stage2_base_level_mm": 3840.0,
+        "elou_stage1_level_sensitivity_mm": 4600.0,
+        "elou_stage2_level_sensitivity_mm": 4200.0,
+        "elou_low_level_interlock_mm": ELOU_LOW_LEVEL_INTERLOCK_MM,
+        "elou_temperature_offset_c": -2.0,
+        "elou_level_time_constant_ms": 30_000,
+        "elou_operating_level_mm": 3700.0,
+        "wash_water_max_ratio": 0.20,
+    },
 }
 
 # Эталонная последовательность действий оператора (§10.1 ТЗ, §40 сценария).

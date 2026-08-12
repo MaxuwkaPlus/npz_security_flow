@@ -96,8 +96,13 @@ async def test_developing_disturbance_raises_escalating_alarms(
     assert ("flow_deviation_branch", "L1") in raised
     assert ("feed_flow_imbalance", "L2") in raised
     assert ("t11_temperature_deviation", "L3") in raised
-    # Правила ЭЛОУ и К-1 молчат: эти участки моделируются на следующем этапе.
-    assert all(level in ("L1", "L2", "L3") for _, level in raised)
+    assert ("elou_load_imbalance", "L4") in raised
+    # Правила К-1, печей и К-2 молчат: эти участки моделируются следующими шагами.
+    assert not {code for code, _ in raised} & {
+        "k1_feed_deviation",
+        "unsafe_furnace_heat_to_feed",
+        "k2_critical_instability",
+    }
 
 
 async def test_alarm_appears_only_after_activation_delay(

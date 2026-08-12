@@ -7,6 +7,7 @@
 
 from typing import Any
 
+from app.domain.downstream import DownstreamConfig, hv_trip_count, is_online
 from app.domain.twin import BRANCH_COUNT, PlantState, TwinConfig
 
 PUMP_STATE_RUNNING = "RUNNING"
@@ -29,7 +30,22 @@ def visible_values(state: PlantState, config: TwinConfig) -> dict[str, Any]:
     values["standby_pump_state"] = (
         PUMP_STATE_RUNNING if state.pump_running and state.active_pump_code != "N-1" else PUMP_STATE_STANDBY
     )
+    values.update(_elou_values(state, config))
     return values
+
+
+def _elou_values(state: PlantState, config: TwinConfig) -> dict[str, Any]:
+    downstream = DownstreamConfig.from_json(config.downstream)
+    elou = state.downstream.elou
+    return {
+        "elou_wash_water_ratio": round(elou.wash_water_ratio, 4),
+        "elou_stage1_min_level_mm": round(elou.stage1_level_mm, 1),
+        "elou_stage2_min_level_mm": round(elou.stage2_level_mm, 1),
+        "elou_temperature_c": round(elou.temperature_c, 2),
+        "elou_load_imbalance_ratio": round(elou.imbalance_ratio, 4),
+        "elou_hv_trip_count": float(hv_trip_count(state.downstream, downstream)),
+        "elou_online": 1.0 if is_online(elou.load_ratio, downstream) else 0.0,
+    }
 
 
 def derived_values(state: PlantState, config: TwinConfig) -> dict[str, float]:

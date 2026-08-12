@@ -13,6 +13,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, replace
 from typing import Any
 
+from app.domain.commands import Command
+from app.domain.downstream import (
+    DownstreamConfig,
+    DownstreamState,
+    initial_downstream_state,
+    step_downstream,
+)
+from app.domain.dynamics import approach, clamp
+
 BRANCH_COUNT = 3
 
 START_FEED_PUMP = "start_feed_pump"
@@ -41,6 +50,8 @@ class TwinConfig:
     warmup_min_flow_ratio: float = 0.5
     # Расход, при котором установка считается выведенной на режим.
     operating_mode_flow_ratio: float = 0.95
+    # Коэффициенты участков после Т-1…Т-11 разбираются отдельным конфигом.
+    downstream: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "TwinConfig":
@@ -85,13 +96,6 @@ class Disturbance:
 
 
 @dataclass(frozen=True, slots=True)
-class Command:
-    action_type: str
-    target_code: str
-    value: Mapping[str, float] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
 class BranchState:
     flow_tph: float
     pressure_bar: float
@@ -112,6 +116,7 @@ class PlantState:
     # Один раз выведенная на режим установка остаётся «в режиме»: дальнейшее падение
     # расхода — уже отклонение, а не продолжающийся пуск.
     operating_mode: bool
+    downstream: DownstreamState
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -132,6 +137,7 @@ class PlantState:
             "severity": self.severity,
             "corrected": self.corrected,
             "operating_mode": self.operating_mode,
+            "downstream": self.downstream.to_json(),
         }
 
     @classmethod
@@ -154,6 +160,7 @@ class PlantState:
             severity=float(data["severity"]),
             corrected=bool(data["corrected"]),
             operating_mode=bool(data.get("operating_mode", False)),
+            downstream=DownstreamState.from_json(data.get("downstream", {})),
         )
 
 
@@ -176,6 +183,7 @@ def initial_state(config: TwinConfig) -> PlantState:
         severity=0.0,
         corrected=False,
         operating_mode=False,
+        downstream=initial_downstream_state(),
     )
 
 
@@ -201,13 +209,24 @@ def step(
     total_ratio = sum(branch.flow_tph for branch in branches) / (
         config.nominal_branch_flow_tph * BRANCH_COUNT
     )
-    warmup = _approach(
+    warmup = approach(
         state.warmup,
         1.0 if total_ratio >= config.warmup_min_flow_ratio else 0.0,
         dt_ms,
         config.warmup_time_constant_ms,
     )
     min_flow_ratio = min(branch.flow_tph for branch in branches) / config.nominal_branch_flow_tph
+    flows = [branch.flow_tph for branch in branches]
+    mean_flow = sum(flows) / BRANCH_COUNT
+    downstream = step_downstream(
+        state.downstream,
+        DownstreamConfig.from_json(config.downstream),
+        feed_ratio=total_ratio,
+        flow_imbalance_ratio=(max(flows) - min(flows)) / mean_flow if mean_flow > 1.0 else 0.0,
+        feed_temperature_c=sum(branch.outlet_temp_c for branch in branches) / BRANCH_COUNT,
+        dt_ms=dt_ms,
+        commands=commands,
+    )
     return replace(
         state,
         branches=branches,
@@ -215,6 +234,7 @@ def step(
         warmup=warmup,
         severity=severity,
         operating_mode=state.operating_mode or min_flow_ratio >= config.operating_mode_flow_ratio,
+        downstream=downstream,
     )
 
 
@@ -251,7 +271,7 @@ def _apply_commands(
 def _opening(command: Command, branch: BranchState) -> float:
     if command.action_type == RESTORE_FLOW_CONTROL:
         return 100.0
-    return _clamp(float(command.value.get("opening_pct", branch.valve_command_pct)), 0.0, 100.0)
+    return clamp(float(command.value.get("opening_pct", branch.valve_command_pct)), 0.0, 100.0)
 
 
 def _is_corrective(command: Command, config: TwinConfig, disturbance: Disturbance) -> bool:
@@ -281,7 +301,7 @@ def _pump_pressure(
     if state.pump_running:
         target = config.nominal_pump_discharge_pressure_bar
         target -= disturbance.pump_discharge_pressure_drop_bar * severity
-    return _approach(state.pump_discharge_pressure_bar, target, dt_ms, config.pressure_time_constant_ms)
+    return approach(state.pump_discharge_pressure_bar, target, dt_ms, config.pressure_time_constant_ms)
 
 
 def _step_branch(
@@ -297,7 +317,7 @@ def _step_branch(
     valve_actual = branch.valve_command_pct
     if is_target:
         valve_actual -= disturbance.valve_actual_offset_pct * severity
-    valve_actual = _clamp(valve_actual, 0.0, 100.0)
+    valve_actual = clamp(valve_actual, 0.0, 100.0)
 
     flow_factor = valve_actual / 100.0
     if is_target:
@@ -305,14 +325,14 @@ def _step_branch(
     else:
         flow_factor *= 1.0 + disturbance.other_branch_flow_gain * severity
     target_flow = config.nominal_branch_flow_tph * flow_factor if state.pump_running else 0.0
-    flow = _approach(branch.flow_tph, max(0.0, target_flow), dt_ms, config.flow_time_constant_ms)
+    flow = approach(branch.flow_tph, max(0.0, target_flow), dt_ms, config.flow_time_constant_ms)
 
     target_pressure = 0.0
     if state.pump_running:
         target_pressure = config.nominal_branch_pressure_bar
         if is_target:
             target_pressure -= disturbance.target_branch_pressure_drop_bar * severity
-    pressure = _approach(branch.pressure_bar, target_pressure, dt_ms, config.pressure_time_constant_ms)
+    pressure = approach(branch.pressure_bar, target_pressure, dt_ms, config.pressure_time_constant_ms)
 
     return BranchState(
         flow_tph=flow,
@@ -329,21 +349,9 @@ def _step_temperature(
     # Меньше расход при той же тепловой нагрузке — выше температура на выходе цепочки.
     flow_ratio = max(flow_tph / config.nominal_branch_flow_tph, 0.05)
     target = config.ambient_temp_c + config.t11_duty_c * warmup * flow_ratio**-config.t11_flow_sensitivity
-    return _approach(branch.outlet_temp_c, target, dt_ms, config.temperature_time_constant_ms)
+    return approach(branch.outlet_temp_c, target, dt_ms, config.temperature_time_constant_ms)
 
 
 def _branch_index(config: TwinConfig, target_code: str) -> int | None:
     codes = config.branch_controller_codes
     return codes.index(target_code) if target_code in codes else None
-
-
-def _approach(current: float, target: float, dt_ms: int, time_constant_ms: int) -> float:
-    """Апериодическое звено первого порядка: изменение растянуто во времени."""
-
-    if time_constant_ms <= 0:
-        return target
-    return current + (target - current) * min(1.0, dt_ms / time_constant_ms)
-
-
-def _clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))

@@ -180,6 +180,7 @@ ELOU_EQUIPMENT = [
                 "elou_load_imbalance_ratio", "ratio", normal_max=0.10, warning_max=0.18, critical_max=0.28
             ),
             TagSpec("elou_hv_trip_count", "count", value_type="int", normal_max=0.0, critical_max=0.0),
+            TagSpec("elou_online", "0/1", value_type="int", normal_min=1.0),
         ),
     ),
     EquipmentSpec("A-19", "mixer", "Смеситель А-19", parent_code="ELOU"),
