@@ -16,6 +16,8 @@ class ActionStatus(StrEnum):
     ACCEPTED = "accepted"
     APPLIED = "applied"
     REJECTED = "rejected"
+    # Оператор отозвал команду до того, как её применил очередной шаг симуляции.
+    CANCELLED = "cancelled"
 
 
 class ActionClassification(StrEnum):

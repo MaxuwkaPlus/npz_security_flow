@@ -30,10 +30,14 @@ class ConclusionFacts:
     unacknowledged_alarms: int
 
 
-def outcome_of(status: str, parameters_in_range: bool) -> Outcome:
+def outcome_of(status: str, parameters_in_range: bool, downstream_checks_done: bool) -> Outcome:
+    """Установка считается стабилизированной, только если последствия проверены (§22)."""
+
     if status == "aborted":
         return Outcome.ABORTED
-    return Outcome.STABILIZED if parameters_in_range else Outcome.NOT_STABILIZED
+    if parameters_in_range and downstream_checks_done:
+        return Outcome.STABILIZED
+    return Outcome.NOT_STABILIZED
 
 
 def conclusions(facts: ConclusionFacts) -> list[str]:

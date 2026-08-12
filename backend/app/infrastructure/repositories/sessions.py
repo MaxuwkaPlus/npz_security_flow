@@ -172,6 +172,10 @@ class SessionRepository:
         action: OperatorAction | None = await self._session.scalar(query)
         return action
 
+    async def get_action(self, action_id: str) -> OperatorAction | None:
+        action: OperatorAction | None = await self._session.get(OperatorAction, action_id)
+        return action
+
     async def accepted_actions(self, session_id: str) -> Sequence[OperatorAction]:
         """Принятые, но ещё не применённые команды в порядке поступления."""
 

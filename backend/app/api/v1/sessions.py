@@ -17,7 +17,7 @@ from app.api.v1.schemas.observations import (
     SubmitDiagnosisRequest,
 )
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
-from app.application.actions import submit_action
+from app.application.actions import cancel_action, submit_action
 from app.application.alarms import acknowledge_alarm, list_alarms
 from app.application.assessment import current_checkpoint, submit_answers, submit_nasa_tlx
 from app.application.observations import record_observation, submit_diagnosis
@@ -146,6 +146,15 @@ async def post_nasa_tlx(
     async with runner.exclusive(session_id) as uow:
         response = await submit_nasa_tlx(uow, session_id, payload.model_dump())
     return NasaTlxResponseSchema.from_model(response)
+
+
+@router.post("/{session_id}/actions/{action_id}/cancel", response_model=ActionResponse)
+async def post_action_cancel(session_id: str, action_id: str, runner: SessionRunnerDep) -> ActionResponse:
+    """Отзывает команду, которую ещё не применил очередной шаг симуляции."""
+
+    async with runner.exclusive(session_id) as uow:
+        receipt = await cancel_action(uow, session_id, action_id)
+    return ActionResponse.from_receipt(receipt)
 
 
 @router.get("/{session_id}/alarms", response_model=list[AlarmResponse])

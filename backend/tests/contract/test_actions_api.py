@@ -169,3 +169,50 @@ async def test_command_on_paused_session_is_refused(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "SESSION_NOT_RUNNING"
+
+
+async def test_accepted_command_can_be_cancelled_before_it_is_applied(
+    client: AsyncClient, configuration: SeededConfiguration, database: Database
+) -> None:
+    """Отменённая команда не доходит до установки и остаётся в журнале."""
+
+    session_id = await running_session(client, configuration)
+    accepted = (await submit(client, session_id, action_type="start_feed_pump", target_code="N-1")).json()
+
+    cancelled = await client.post(f"/api/v1/sessions/{session_id}/actions/{accepted['id']}/cancel", json={})
+    await tick(database, session_id, times=10)
+
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    async with database.session_factory() as session:
+        stored = await session.get(TrainingSession, session_id)
+        action = await session.scalar(select(OperatorAction))
+    assert stored is not None and action is not None
+    assert stored.runtime_state_json["plant"]["pump_running"] is False
+    assert action.classification == "cancelled"
+
+
+async def test_cancelling_twice_is_idempotent(
+    client: AsyncClient, configuration: SeededConfiguration
+) -> None:
+    session_id = await running_session(client, configuration)
+    accepted = (await submit(client, session_id, action_type="start_feed_pump", target_code="N-1")).json()
+    url = f"/api/v1/sessions/{session_id}/actions/{accepted['id']}/cancel"
+
+    first = await client.post(url, json={})
+    second = await client.post(url, json={})
+
+    assert first.json() == second.json()
+
+
+async def test_applied_command_cannot_be_cancelled(
+    client: AsyncClient, configuration: SeededConfiguration, database: Database
+) -> None:
+    session_id = await running_session(client, configuration)
+    accepted = (await submit(client, session_id, action_type="start_feed_pump", target_code="N-1")).json()
+    await tick(database, session_id, times=2)
+
+    response = await client.post(f"/api/v1/sessions/{session_id}/actions/{accepted['id']}/cancel", json={})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "ACTION_ALREADY_RESOLVED"

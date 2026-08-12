@@ -11,7 +11,7 @@ from typing import Any
 
 from app.application.runtime_config import control_policy
 from app.core.errors import ConflictError, NotFoundError
-from app.domain.commands import ActionStatus, RejectionReason
+from app.domain.commands import ActionClassification, ActionStatus, RejectionReason
 from app.domain.sessions import SessionStatus, accepts_operator_input
 from app.infrastructure.db.models import OperatorAction, ScenarioVersion, TrainingSession
 from app.infrastructure.db.unit_of_work import UnitOfWork
@@ -86,6 +86,36 @@ async def submit_action(
         correlation_id=request_id,
     )
     action.sequence_no = training_session.last_sequence_no
+    return _receipt(action)
+
+
+async def cancel_action(uow: UnitOfWork, session_id: str, action_id: str) -> ActionReceipt:
+    """Отменяет принятую команду. Применённую отменить уже нельзя — только скомпенсировать."""
+
+    action = await uow.sessions.get_action(action_id)
+    if action is None or action.session_id != session_id:
+        raise NotFoundError("ACTION_NOT_FOUND", "Команда не найдена")
+    if action.status == ActionStatus.CANCELLED:
+        return _receipt(action)
+    if action.status != ActionStatus.ACCEPTED:
+        raise ConflictError(
+            "ACTION_ALREADY_RESOLVED",
+            "Команду можно отменить только до её применения",
+            {"status": action.status},
+        )
+
+    training_session = await uow.sessions.get(session_id)
+    if training_session is None:
+        raise NotFoundError("SESSION_NOT_FOUND", "Сессия не найдена")
+    action.status = ActionStatus.CANCELLED
+    action.classification = ActionClassification.CANCELLED
+    uow.sessions.append_event(
+        training_session,
+        "action_cancelled",
+        "operator_action",
+        {"action_type": action.action_type, "target_code": action.target_code},
+        aggregate_id=action.id,
+    )
     return _receipt(action)
 
 

@@ -31,6 +31,7 @@ EXPECTED_PATHS = {
     "/api/v1/sessions/{session_id}/resume",
     "/api/v1/sessions/{session_id}/abort",
     "/api/v1/sessions/{session_id}/actions",
+    "/api/v1/sessions/{session_id}/actions/{action_id}/cancel",
     "/api/v1/sessions/{session_id}/observations",
     "/api/v1/sessions/{session_id}/diagnoses",
     "/api/v1/sessions/{session_id}/alarms",

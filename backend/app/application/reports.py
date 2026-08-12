@@ -104,7 +104,11 @@ async def build_report(uow: UnitOfWork, session_id: str) -> dict[str, Any]:
             "level_no": level.level_no,
             "scoring_policy_version_id": training_session.scoring_policy_version_id,
         },
-        "outcome": outcome_of(training_session.status, parameters_in_range).value,
+        "outcome": outcome_of(
+            training_session.status,
+            parameters_in_range,
+            downstream_checks_done=set(DOWNSTREAM_CHECKS) <= closed,
+        ).value,
         "timings": {
             "total_sim_time_ms": training_session.sim_time_ms,
             "detection_time_ms": detection_ms,

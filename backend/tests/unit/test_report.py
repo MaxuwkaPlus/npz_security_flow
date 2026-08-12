@@ -21,10 +21,21 @@ GOOD_RUN = ConclusionFacts(
 )
 
 
-def test_outcome_depends_on_status_and_parameters() -> None:
-    assert outcome_of("completed", parameters_in_range=True) is Outcome.STABILIZED
-    assert outcome_of("completed", parameters_in_range=False) is Outcome.NOT_STABILIZED
-    assert outcome_of("aborted", parameters_in_range=True) is Outcome.ABORTED
+def test_outcome_requires_both_normal_parameters_and_checked_consequences() -> None:
+    """§22: завершение требует downstream-проверок, а не только параметров в норме."""
+
+    assert (
+        outcome_of("completed", parameters_in_range=True, downstream_checks_done=True) is Outcome.STABILIZED
+    )
+    assert (
+        outcome_of("completed", parameters_in_range=True, downstream_checks_done=False)
+        is Outcome.NOT_STABILIZED
+    )
+    assert (
+        outcome_of("completed", parameters_in_range=False, downstream_checks_done=True)
+        is Outcome.NOT_STABILIZED
+    )
+    assert outcome_of("aborted", parameters_in_range=True, downstream_checks_done=True) is Outcome.ABORTED
 
 
 def test_flawless_run_gets_positive_conclusions() -> None:
