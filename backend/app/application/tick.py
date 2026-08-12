@@ -13,6 +13,7 @@ from app.application.alarms import load_alarm_rules, refresh_alarms
 from app.application.assessment import open_checkpoint, snapshot_metrics_before
 from app.application.classification import classify_applied, effect_rule, evaluate_pending_effects
 from app.application.observations import completed_checks
+from app.application.reports import build_report
 from app.application.runtime_config import (
     checks_policy,
     disturbance_after_stage,
@@ -23,7 +24,6 @@ from app.application.runtime_config import (
     simulation_clock,
     twin_config,
 )
-from app.application.scoring import calculate_scores
 from app.application.stages import advance_stage, load_stages
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
@@ -154,7 +154,7 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
     scenario_finished = decision.changed and decision.next_stage_code is None
     if scenario_finished or clock.is_finished(training_session.sim_time_ms):
         _complete(uow, training_session, scenario_finished)
-        await calculate_scores(uow, session_id)
+        await build_report(uow, session_id)
 
     return _result(training_session, clock, applied=True, snapshot_written=snapshot_written)
 
