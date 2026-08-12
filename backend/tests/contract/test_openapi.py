@@ -72,6 +72,20 @@ def test_every_operation_belongs_to_exactly_one_documented_group(app: FastAPI) -
     assert {tag for tags in tags_by_operation.values() for tag in tags} <= documented
 
 
+def test_every_operation_is_described(app: FastAPI) -> None:
+    """Заголовок читается в свёрнутом списке /docs, описание объясняет назначение ручки."""
+
+    spec = app.openapi()
+    undocumented = [
+        f"{method.upper()} {path}"
+        for path, item in spec["paths"].items()
+        for method, operation in item.items()
+        if not operation.get("summary") or not operation.get("description")
+    ]
+
+    assert undocumented == []
+
+
 def test_no_response_schema_exposes_hidden_state(app: FastAPI) -> None:
     """Скрытая причина, интенсивность возмущения и правильность диагноза вне контракта."""
 

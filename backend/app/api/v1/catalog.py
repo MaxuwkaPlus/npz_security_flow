@@ -21,14 +21,29 @@ from app.infrastructure.repositories.catalog import CatalogRepository
 router = APIRouter(tags=[CATALOG])
 
 
-@router.get("/scenarios", response_model=list[ScenarioSummaryResponse])
+@router.get("/scenarios", response_model=list[ScenarioSummaryResponse], summary="Список сценариев")
 async def list_scenarios(session: SessionDep) -> list[ScenarioSummaryResponse]:
+    """Опубликованные сценарии для выбора перед прохождением.
+
+    Идентификатор отсюда нужен, чтобы создать сессию.
+    """
+
     scenarios = await CatalogRepository(session).list_published_scenarios()
     return [_summary(scenario) for scenario in scenarios]
 
 
-@router.get("/scenarios/{scenario_version_id}", response_model=ScenarioDetailResponse)
+@router.get(
+    "/scenarios/{scenario_version_id}",
+    response_model=ScenarioDetailResponse,
+    summary="Уровни сложности и этапы сценария",
+)
 async def get_scenario(scenario_version_id: str, session: SessionDep) -> ScenarioDetailResponse:
+    """Уровни сложности для выбора и полный список этапов прохождения с обязательными проверками.
+
+    По этапам строится индикатор прогресса. Скрытые шаблоны возмущения и эталонная
+    последовательность действий в ответ не попадают.
+    """
+
     scenario = await CatalogRepository(session).get_scenario(scenario_version_id)
     if scenario is None:
         raise NotFoundError("SCENARIO_NOT_FOUND", "Версия сценария не найдена")
@@ -57,8 +72,18 @@ async def get_scenario(scenario_version_id: str, session: SessionDep) -> Scenari
     )
 
 
-@router.get("/installations/{installation_version_id}/topology", response_model=TopologyResponse)
+@router.get(
+    "/installations/{installation_version_id}/topology",
+    response_model=TopologyResponse,
+    summary="Схема установки",
+)
 async def get_topology(installation_version_id: str, session: SessionDep) -> TopologyResponse:
+    """Состав оборудования, связи между аппаратами и пороги приборов.
+
+    Читается один раз, чтобы отрисовать мнемосхему и знать, при каком значении подсвечивать
+    показание как отклонение.
+    """
+
     repository = CatalogRepository(session)
     installation = await repository.get_installation(installation_version_id)
     if installation is None:
