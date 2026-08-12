@@ -11,6 +11,7 @@ from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
 from app.application.runtime_config import (
+    disturbance_after_stage,
     disturbance_of,
     nuisance_policy,
     safety_policy,
@@ -28,6 +29,7 @@ from app.domain.safety import (
     is_dangerous_heat_compensation,
 )
 from app.domain.sessions import SessionCommand, SessionStatus, apply_command
+from app.domain.stages import StageDecision, StageOutcome
 from app.domain.twin import PlantState, TwinConfig, initial_state, step
 from app.infrastructure.db.models import (
     OperatorAction,
@@ -43,6 +45,7 @@ ALARMS_KEY = "alarms"
 PENDING_KEY = "pending_since"
 STAGE_KEY = "stage"
 HOLDING_KEY = "holding_since_ms"
+ARMED_KEY = "disturbance_armed_at_ms"
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,15 +73,17 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
         return _result(training_session, clock, applied=False, snapshot_written=False)
 
     config = twin_config(scenario)
+    current_stage = training_session.current_stage_code
     before = plant_state(training_session, config)
     # 1–3. Принятые команды берутся в порядке поступления и применяются этим шагом.
     pending = await uow.sessions.accepted_actions(session_id)
     training_session.sim_time_ms = clock.advance(training_session.sim_time_ms)
     # 4–6. Скрытое возмущение, новое технологическое состояние и производные значения.
+    armed_at_ms = disturbance_armed_at(training_session)
     plant = step(
         before,
         config,
-        disturbance_of(training_session),
+        disturbance_of(training_session, armed_at_ms),
         sim_time_ms=training_session.sim_time_ms,
         dt_ms=clock.tick_interval_ms,
         commands=[
@@ -101,7 +106,12 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
     # 8. Переход этапа. Оценка эффекта команд появится вместе с классификацией действий.
     stages = await load_stages(uow, scenario.id)
     decision = await advance_stage(uow, training_session, stages, metrics, stage_timer_of(training_session))
-    training_session.runtime_state_json = _runtime_state(plant, alarm_timers, decision.holding_since_ms)
+    if armed_at_ms is None and _confirms_stable_mode(training_session, decision, current_stage):
+        # Устойчивый режим подтверждён — с этого момента отсчитывается скрытое возмущение.
+        armed_at_ms = training_session.sim_time_ms
+    training_session.runtime_state_json = _runtime_state(
+        plant, alarm_timers, decision.holding_since_ms, armed_at_ms
+    )
 
     snapshot_written = clock.is_snapshot_due(training_session.sim_time_ms)
     if snapshot_written:
@@ -177,6 +187,21 @@ def alarm_timers_of(training_session: TrainingSession) -> dict[str, int]:
     return {code: int(since) for code, since in alarms.get(PENDING_KEY, {}).items()}
 
 
+def disturbance_armed_at(training_session: TrainingSession) -> int | None:
+    """Момент подтверждения устойчивого режима; до него возмущения не существует."""
+
+    armed = training_session.runtime_state_json.get(STAGE_KEY, {}).get(ARMED_KEY)
+    return int(armed) if armed is not None else None
+
+
+def _confirms_stable_mode(
+    training_session: TrainingSession, decision: StageDecision, stage_code: str
+) -> bool:
+    return decision.outcome is StageOutcome.SUCCESS and stage_code == disturbance_after_stage(
+        training_session
+    )
+
+
 def stage_timer_of(training_session: TrainingSession) -> int | None:
     """С какого момента условие успеха этапа держится непрерывно."""
 
@@ -185,16 +210,19 @@ def stage_timer_of(training_session: TrainingSession) -> int | None:
 
 
 def initial_runtime_state(config: TwinConfig) -> dict[str, Any]:
-    return _runtime_state(initial_state(config), {}, None)
+    return _runtime_state(initial_state(config), {}, None, None)
 
 
 def _runtime_state(
-    plant: PlantState, alarm_timers: Mapping[str, int], stage_holding_since_ms: int | None
+    plant: PlantState,
+    alarm_timers: Mapping[str, int],
+    stage_holding_since_ms: int | None,
+    disturbance_armed_at_ms: int | None,
 ) -> dict[str, Any]:
     return {
         PLANT_KEY: plant.to_json(),
         ALARMS_KEY: {PENDING_KEY: dict(alarm_timers)},
-        STAGE_KEY: {HOLDING_KEY: stage_holding_since_ms},
+        STAGE_KEY: {HOLDING_KEY: stage_holding_since_ms, ARMED_KEY: disturbance_armed_at_ms},
     }
 
 

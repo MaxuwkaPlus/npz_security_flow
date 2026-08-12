@@ -43,7 +43,18 @@ def safety_policy(scenario: ScenarioVersion) -> SafetyPolicy:
     return SafetyPolicy.from_json(scenario.config_json.get("safety", {}))
 
 
-def disturbance_of(training_session: TrainingSession) -> Disturbance:
+# Пока устойчивый режим не подтверждён, возмущения нет: момент вынесен за горизонт сценария.
+NEVER_MS = 1 << 60
+
+
+def disturbance_of(training_session: TrainingSession, armed_at_ms: int | None) -> Disturbance:
     """Скрытое возмущение сессии. Читается только расчётом и аудитом."""
 
-    return Disturbance.from_hidden_config(training_session.hidden_runtime_config_json["disturbance"])
+    hidden = training_session.hidden_runtime_config_json["disturbance"]
+    onset = NEVER_MS if armed_at_ms is None else armed_at_ms + int(hidden["onset_delay_ms"])
+    return Disturbance.from_hidden_config(hidden, onset)
+
+
+def disturbance_after_stage(training_session: TrainingSession) -> str:
+    hidden = training_session.hidden_runtime_config_json["disturbance"]
+    return str(hidden["after_stage_code"])

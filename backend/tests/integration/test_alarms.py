@@ -13,7 +13,10 @@ from tests.conftest import SeededConfiguration
 
 # Возмущение по конфигурации начинается около 3060 с, развивается 360 с. В тесте оба
 # срока сокращены, чтобы не прогонять час симуляционного времени.
-DISTURBANCE_ONSET_MS = 300_000
+DISTURBANCE_ONSET_DELAY_MS = 0
+# Возмущение вводится после подтверждения устойчивого режима. Здесь оно взводится
+# напрямую: тест проверяет движок тревог, а не прохождение всех этапов сценария.
+DISTURBANCE_ARMED_AT_MS = 300_000
 DISTURBANCE_RAMP_MS = 60_000
 # Прогрев теплообменной цепочки тоже ускорен: иначе температура выходит на предел
 # только к концу часа, и проверка L3 стоила бы тысяч тиков.
@@ -43,7 +46,7 @@ async def prepared_session(database: Database, configuration: SeededConfiguratio
         assert training_session is not None
         hidden = dict(training_session.hidden_runtime_config_json)
         disturbance = dict(hidden["disturbance"])
-        disturbance["onset_sim_time_ms"] = DISTURBANCE_ONSET_MS
+        disturbance["onset_delay_ms"] = DISTURBANCE_ONSET_DELAY_MS
         disturbance["development"] = disturbance["development"] | {"ramp_duration_ms": DISTURBANCE_RAMP_MS}
         hidden["disturbance"] = disturbance
         training_session.hidden_runtime_config_json = hidden
@@ -53,6 +56,11 @@ async def prepared_session(database: Database, configuration: SeededConfiguratio
         await submit_action(
             uow, state.id, request_id="pump-1", action_type=START_FEED_PUMP, target_code="N-1"
         )
+        training_session = await uow.sessions.get(state.id)
+        assert training_session is not None
+        runtime = dict(training_session.runtime_state_json)
+        runtime["stage"] = runtime["stage"] | {"disturbance_armed_at_ms": DISTURBANCE_ARMED_AT_MS}
+        training_session.runtime_state_json = runtime
     return state.id
 
 
@@ -126,7 +134,7 @@ async def test_alarm_appears_only_after_activation_delay(
     assert early == []
     first = later[0]
     assert first.alarm_code == "flow_deviation_branch"
-    assert first.started_sim_time_ms > DISTURBANCE_ONSET_MS
+    assert first.started_sim_time_ms > DISTURBANCE_ARMED_AT_MS
 
 
 async def test_correct_action_clears_alarms_through_the_process(

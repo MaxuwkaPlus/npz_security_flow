@@ -253,8 +253,9 @@ def _to_option(template: Any) -> DisturbanceOption:
         code=template.code,
         cause_code=template.cause_code,
         eligible_branches=tuple(template.eligible_targets_json),
-        earliest_sim_time_ms=int(onset["earliest_sim_time_ms"]),
-        latest_sim_time_ms=int(onset["latest_sim_time_ms"]),
+        after_stage_code=str(onset["after_stage_code"]),
+        earliest_delay_ms=int(onset["earliest_delay_ms"]),
+        latest_delay_ms=int(onset["latest_delay_ms"]),
         development=dict(template.development_rule_json),
         recovery=dict(template.recovery_rule_json),
     )

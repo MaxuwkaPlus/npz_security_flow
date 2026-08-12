@@ -18,8 +18,11 @@ class DisturbanceOption:
     code: str
     cause_code: str
     eligible_branches: tuple[int, ...]
-    earliest_sim_time_ms: int
-    latest_sim_time_ms: int
+    # Задержка отсчитывается от подтверждения устойчивого режима (§10 ТЗ),
+    # а не от начала сценария: оператор может выйти на режим быстрее или медленнее.
+    after_stage_code: str
+    earliest_delay_ms: int
+    latest_delay_ms: int
     development: dict[str, Any]
     recovery: dict[str, Any]
 
@@ -29,7 +32,8 @@ class HiddenDisturbance:
     code: str
     cause_code: str
     target_branch: int
-    onset_sim_time_ms: int
+    after_stage_code: str
+    onset_delay_ms: int
     development: dict[str, Any]
     recovery: dict[str, Any]
 
@@ -53,7 +57,7 @@ def select_disturbance(
         raise ValueError(f"Шаблон возмущения {option.code} не указывает целевые ветви")
 
     target_branch = generator.choice(sorted(option.eligible_branches))
-    onset_sim_time_ms = generator.randint(option.earliest_sim_time_ms, option.latest_sim_time_ms)
+    onset_delay_ms = generator.randint(option.earliest_delay_ms, option.latest_delay_ms)
 
     development = dict(option.development)
     # Уровень сложности меняет только скорость развития, а не саму причину.
@@ -65,7 +69,8 @@ def select_disturbance(
         code=option.code,
         cause_code=option.cause_code,
         target_branch=target_branch,
-        onset_sim_time_ms=onset_sim_time_ms,
+        after_stage_code=option.after_stage_code,
+        onset_delay_ms=onset_delay_ms,
         development=development,
         recovery=dict(option.recovery),
     )

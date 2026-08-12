@@ -20,11 +20,12 @@ from app.infrastructure.db.models import (
     ScenarioVersion,
     SessionAlarm,
     SessionEvent,
+    TrainingSession,
 )
 from app.infrastructure.db.unit_of_work import UnitOfWork
 from tests.conftest import SeededConfiguration
 
-DISTURBANCE_ONSET_MS = 600_000
+DISTURBANCE_ONSET_DELAY_MS = 0
 DISTURBANCE_RAMP_MS = 60_000
 FAST_MODEL = {
     "warmup_time_constant_ms": 30_000,
@@ -69,7 +70,7 @@ async def prepare(database: Database, configuration: SeededConfiguration) -> str
         assert training_session is not None
         hidden = dict(training_session.hidden_runtime_config_json)
         disturbance = dict(hidden["disturbance"])
-        disturbance["onset_sim_time_ms"] = DISTURBANCE_ONSET_MS
+        disturbance["onset_delay_ms"] = DISTURBANCE_ONSET_DELAY_MS
         disturbance["development"] = disturbance["development"] | {"ramp_duration_ms": DISTURBANCE_RAMP_MS}
         hidden["disturbance"] = disturbance
         training_session.hidden_runtime_config_json = hidden
@@ -222,3 +223,38 @@ async def test_lowering_heat_load_is_not_dangerous(
             )
         ).all()
     assert events == []
+
+
+async def test_disturbance_waits_for_confirmed_stable_mode(
+    database: Database, configuration: SeededConfiguration
+) -> None:
+    """Возмущение вводится только после подтверждения устойчивого режима (§10 ТЗ)."""
+
+    session_id = await prepare(database, configuration)
+    await act(database, session_id, "pump", START_FEED_PUMP, "N-1")
+
+    # Вода и Н-20 не поданы: устойчивый режим не подтверждается, возмущения нет.
+    await tick(database, session_id, times=1_200)
+
+    async with database.session_factory() as session:
+        stored = await session.get(TrainingSession, session_id)
+    assert stored is not None
+    assert stored.runtime_state_json["stage"]["disturbance_armed_at_ms"] is None
+    assert stored.runtime_state_json["plant"]["severity"] == 0.0
+    assert await alarm_codes(database, session_id) == set()
+
+
+async def test_confirmed_stable_mode_arms_the_disturbance(
+    database: Database, configuration: SeededConfiguration
+) -> None:
+    session_id = await start_plant(database, configuration)
+
+    # Этапы пуска закрываются по своим условиям, устойчивый режим подтверждается позже.
+    await tick(database, session_id, times=900)
+
+    async with database.session_factory() as session:
+        stored = await session.get(TrainingSession, session_id)
+    assert stored is not None
+    armed_at = stored.runtime_state_json["stage"]["disturbance_armed_at_ms"]
+    assert armed_at is not None
+    assert armed_at <= stored.sim_time_ms

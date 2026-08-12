@@ -294,8 +294,13 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
     ),
 )
 
-# Возмущение начинается после подтверждения устойчивого режима (сценарий, §37).
-DISTURBANCE_ONSET = {"earliest_sim_time_ms": 3_060_000, "latest_sim_time_ms": 3_180_000}
+# Возмущение вводится после подтверждения устойчивого режима (§10 ТЗ, §37 сценария).
+# Задержка отсчитывается от завершения этапа, а не от начала сценария.
+DISTURBANCE_ONSET = {
+    "after_stage_code": "stable_mode",
+    "earliest_delay_ms": 0,
+    "latest_delay_ms": 120_000,
+}
 DISTURBANCE_ELIGIBLE_BRANCHES = [1, 2, 3]
 
 # Каждая причина действует через собственный наблюдаемый признак: потеря

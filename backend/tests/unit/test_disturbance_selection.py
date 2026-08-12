@@ -7,8 +7,9 @@ OPTIONS = (
         code="feed_pump_capacity_loss",
         cause_code="pump_capacity_loss",
         eligible_branches=(1, 2, 3),
-        earliest_sim_time_ms=3_060_000,
-        latest_sim_time_ms=3_180_000,
+        after_stage_code="stable_mode",
+        earliest_delay_ms=0,
+        latest_delay_ms=120_000,
         development={"ramp_duration_ms": 360_000, "target_branch_flow_loss": 0.38},
         recovery={"correct_action_type": "switch_to_standby_pump"},
     ),
@@ -16,8 +17,9 @@ OPTIONS = (
         code="flow_control_valve_stiction",
         cause_code="valve_stiction",
         eligible_branches=(1, 2, 3),
-        earliest_sim_time_ms=3_060_000,
-        latest_sim_time_ms=3_180_000,
+        after_stage_code="stable_mode",
+        earliest_delay_ms=0,
+        latest_delay_ms=120_000,
         development={"ramp_duration_ms": 360_000, "target_branch_flow_loss": 0.38},
         recovery={"correct_action_type": "restore_flow_control"},
     ),
@@ -36,7 +38,8 @@ def test_selection_stays_inside_configured_bounds() -> None:
         selected = select_disturbance(OPTIONS, random_seed=seed, development_speed_factor=1.0)
 
         assert selected.target_branch in (1, 2, 3)
-        assert 3_060_000 <= selected.onset_sim_time_ms <= 3_180_000
+        assert 0 <= selected.onset_delay_ms <= 120_000
+        assert selected.after_stage_code == "stable_mode"
         assert selected.cause_code in ("pump_capacity_loss", "valve_stiction")
 
 

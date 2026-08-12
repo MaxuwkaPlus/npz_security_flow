@@ -78,12 +78,14 @@ class Disturbance:
     valve_actual_offset_pct: float = 0.0
 
     @classmethod
-    def from_hidden_config(cls, data: Mapping[str, Any]) -> "Disturbance":
+    def from_hidden_config(cls, data: Mapping[str, Any], onset_sim_time_ms: int) -> "Disturbance":
+        """Момент начала вычисляет runtime: он зависит от хода прохождения, а не от seed."""
+
         development = data.get("development", {})
         recovery = data.get("recovery", {})
         return cls(
             target_branch=int(data["target_branch"]),
-            onset_sim_time_ms=int(data["onset_sim_time_ms"]),
+            onset_sim_time_ms=onset_sim_time_ms,
             correct_action_type=str(recovery.get("correct_action_type", "")),
             ramp_duration_ms=int(development.get("ramp_duration_ms", 360_000)),
             recovery_duration_ms=int(recovery.get("recovery_duration_ms", 180_000)),
