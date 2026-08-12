@@ -6,6 +6,7 @@
 from app.domain.clock import SimulationClock
 from app.domain.commands import ControlPolicy
 from app.domain.nuisance import NuisancePolicy
+from app.domain.observations import ChecksPolicy
 from app.domain.safety import SafetyPolicy
 from app.domain.twin import Disturbance, TwinConfig
 from app.infrastructure.db.models import ScenarioLevel, ScenarioVersion, TrainingSession
@@ -37,6 +38,10 @@ def nuisance_policy(scenario: ScenarioVersion, level: ScenarioLevel) -> Nuisance
     return NuisancePolicy.from_json(
         scenario.config_json.get("nuisance_alarms", {}), level.nuisance_alarm_rate
     )
+
+
+def checks_policy(scenario: ScenarioVersion) -> ChecksPolicy:
+    return ChecksPolicy.from_json(scenario.config_json.get("stage_checks", {}))
 
 
 def safety_policy(scenario: ScenarioVersion) -> SafetyPolicy:

@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
+from app.application.observations import completed_checks
 from app.application.runtime_config import (
+    checks_policy,
     disturbance_after_stage,
     disturbance_of,
     nuisance_policy,
@@ -105,7 +107,14 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
     )
     # 8. Переход этапа. Оценка эффекта команд появится вместе с классификацией действий.
     stages = await load_stages(uow, scenario.id)
-    decision = await advance_stage(uow, training_session, stages, metrics, stage_timer_of(training_session))
+    decision = await advance_stage(
+        uow,
+        training_session,
+        stages,
+        metrics,
+        stage_timer_of(training_session),
+        await completed_checks(uow, session_id, checks_policy(scenario)),
+    )
     if armed_at_ms is None and _confirms_stable_mode(training_session, decision, current_stage):
         # Устойчивый режим подтверждён — с этого момента отсчитывается скрытое возмущение.
         armed_at_ms = training_session.sim_time_ms

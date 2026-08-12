@@ -3,9 +3,16 @@ from fastapi import APIRouter, status
 from app.api.deps import SessionRunnerDep, UnitOfWorkDep
 from app.api.v1.schemas.actions import ActionResponse, SubmitActionRequest
 from app.api.v1.schemas.alarms import AcknowledgeAlarmRequest, AlarmResponse
+from app.api.v1.schemas.observations import (
+    DiagnosisResponse,
+    ObservationResponse,
+    RecordObservationRequest,
+    SubmitDiagnosisRequest,
+)
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
 from app.application.actions import submit_action
 from app.application.alarms import acknowledge_alarm, list_alarms
+from app.application.observations import record_observation, submit_diagnosis
 from app.application.sessions import create_session, get_session_state, transition_session
 from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
 
@@ -54,6 +61,45 @@ async def post_action(
             value=payload.value,
         )
     return ActionResponse.from_receipt(receipt)
+
+
+@router.post(
+    "/{session_id}/observations",
+    response_model=ObservationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_observation(
+    session_id: str, payload: RecordObservationRequest, runner: SessionRunnerDep
+) -> ObservationResponse:
+    """Фиксирует явную проверку участка оператором."""
+
+    async with runner.exclusive(session_id) as uow:
+        receipt = await record_observation(
+            uow,
+            session_id,
+            request_id=payload.request_id,
+            observation_type=payload.observation_type,
+            target_code=payload.target_code,
+            payload=payload.payload,
+        )
+    return ObservationResponse.from_receipt(receipt)
+
+
+@router.post("/{session_id}/diagnoses", response_model=DiagnosisResponse, status_code=status.HTTP_201_CREATED)
+async def post_diagnosis(
+    session_id: str, payload: SubmitDiagnosisRequest, runner: SessionRunnerDep
+) -> DiagnosisResponse:
+    async with runner.exclusive(session_id) as uow:
+        receipt = await submit_diagnosis(
+            uow,
+            session_id,
+            request_id=payload.request_id,
+            affected_area_code=payload.affected_area_code,
+            deviation_code=payload.deviation_code,
+            suspected_cause_code=payload.suspected_cause_code,
+            confidence=payload.confidence,
+        )
+    return DiagnosisResponse.from_receipt(receipt)
 
 
 @router.get("/{session_id}/alarms", response_model=list[AlarmResponse])

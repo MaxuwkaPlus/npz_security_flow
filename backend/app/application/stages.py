@@ -1,6 +1,6 @@
 """Продвижение сессии по этапам сценария."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 
 from sqlalchemy import select
 
@@ -8,11 +8,6 @@ from app.domain.rules import parse_rule
 from app.domain.stages import Stage, StageDecision, evaluate_stage
 from app.infrastructure.db.models import ScenarioStage, TrainingSession
 from app.infrastructure.db.unit_of_work import UnitOfWork
-
-# Обязательные проверки — это наблюдения оператора, они появятся вместе с
-# фиксацией отклонения и диагнозом. Пока список выполненных проверок всегда пуст,
-# поэтому такие этапы закрываются по timeout.
-COMPLETED_CHECKS: frozenset[str] = frozenset()
 
 
 async def load_stages(uow: UnitOfWork, scenario_version_id: str) -> list[Stage]:
@@ -41,6 +36,7 @@ async def advance_stage(
     stages: Sequence[Stage],
     metrics: Mapping[str, float],
     holding_since_ms: int | None,
+    completed_checks: Set[str] = frozenset(),
 ) -> StageDecision:
     """Закрывает текущий этап и открывает следующий. Возвращает решение движка."""
 
@@ -56,7 +52,7 @@ async def advance_stage(
         entered_sim_time_ms=entry.entered_sim_time_ms if entry else 0,
         sim_time_ms=training_session.sim_time_ms,
         holding_since_ms=holding_since_ms,
-        completed_checks=COMPLETED_CHECKS,
+        completed_checks=completed_checks,
     )
     if not decision.changed:
         return decision

@@ -10,6 +10,8 @@ from app.domain.commands import ActionStatus
 from app.infrastructure.db.models import (
     CommandRequest,
     OperatorAction,
+    OperatorDiagnosis,
+    OperatorObservation,
     ProcessSnapshot,
     SessionAlarm,
     SessionEvent,
@@ -182,6 +184,82 @@ class SessionRepository:
             .order_by(OperatorAction.sequence_no)
         )
         return (await self._session.scalars(query)).all()
+
+    def add_observation(
+        self,
+        training_session: TrainingSession,
+        *,
+        request_id: str,
+        observation_type: str,
+        target_code: str,
+        payload: dict[str, Any],
+    ) -> OperatorObservation:
+        observation = OperatorObservation(
+            request_id=request_id,
+            session_id=training_session.id,
+            sequence_no=training_session.last_sequence_no,
+            sim_time_ms=training_session.sim_time_ms,
+            observation_type=observation_type,
+            target_code=target_code,
+            payload_json=payload,
+        )
+        self._session.add(observation)
+        return observation
+
+    async def find_observation(self, request_id: str) -> OperatorObservation | None:
+        query = select(OperatorObservation).where(OperatorObservation.request_id == request_id)
+        observation: OperatorObservation | None = await self._session.scalar(query)
+        return observation
+
+    async def observations(self, session_id: str) -> Sequence[OperatorObservation]:
+        query = (
+            select(OperatorObservation)
+            .where(OperatorObservation.session_id == session_id)
+            .order_by(OperatorObservation.sim_time_ms)
+        )
+        return (await self._session.scalars(query)).all()
+
+    def add_diagnosis(
+        self,
+        training_session: TrainingSession,
+        *,
+        request_id: str,
+        affected_area_code: str,
+        deviation_code: str,
+        suspected_cause_code: str,
+        confidence: float | None,
+        is_correct: bool,
+    ) -> OperatorDiagnosis:
+        diagnosis = OperatorDiagnosis(
+            request_id=request_id,
+            session_id=training_session.id,
+            sequence_no=training_session.last_sequence_no,
+            sim_time_ms=training_session.sim_time_ms,
+            affected_area_code=affected_area_code,
+            deviation_code=deviation_code,
+            suspected_cause_code=suspected_cause_code,
+            confidence=confidence,
+            is_correct=is_correct,
+        )
+        self._session.add(diagnosis)
+        return diagnosis
+
+    async def find_diagnosis(self, request_id: str) -> OperatorDiagnosis | None:
+        query = select(OperatorDiagnosis).where(OperatorDiagnosis.request_id == request_id)
+        diagnosis: OperatorDiagnosis | None = await self._session.scalar(query)
+        return diagnosis
+
+    async def diagnoses(self, session_id: str) -> Sequence[OperatorDiagnosis]:
+        query = (
+            select(OperatorDiagnosis)
+            .where(OperatorDiagnosis.session_id == session_id)
+            .order_by(OperatorDiagnosis.sim_time_ms)
+        )
+        return (await self._session.scalars(query)).all()
+
+    async def has_diagnosis(self, session_id: str) -> bool:
+        query = select(OperatorDiagnosis.id).where(OperatorDiagnosis.session_id == session_id).limit(1)
+        return await self._session.scalar(query) is not None
 
     async def active_alarms(self, session_id: str) -> Sequence[SessionAlarm]:
         query = (

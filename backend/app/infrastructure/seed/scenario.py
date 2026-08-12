@@ -356,6 +356,29 @@ CONTROL_ACTIONS: dict[str, Any] = {
     },
 }
 
+# Чем закрывается обязательная проверка этапа. Оператор фиксирует проверку явно,
+# поэтому соответствие «наблюдение → проверка» описано здесь, а не выводится из UI.
+STAGE_CHECKS: dict[str, Any] = {
+    "feed_system_ready": {"observation_type": "inspect_equipment", "target_code": "FEED-SYSTEM"},
+    "heat_exchangers_ready": {"observation_type": "inspect_equipment", "target_code": "T-1_T-11"},
+    "elou_ready": {"observation_type": "inspect_equipment", "target_code": "ELOU"},
+    "atmospheric_ready": {"observation_type": "inspect_equipment", "target_code": "K-2"},
+    "declare_deviation": {"observation_type": "declare_deviation", "target_code": "FEED-SYSTEM"},
+    "compare_flows": {"observation_type": "compare_flows", "target_code": "FEED-SYSTEM"},
+    "inspect_pressure": {"observation_type": "inspect_pressure", "target_code": "FEED-SYSTEM"},
+    "inspect_pump": {"observation_type": "inspect_equipment", "target_code": "N-1"},
+    "submit_diagnosis": {"by_diagnosis": True},
+    "corrective_action": {"action_types": ["switch_to_standby_pump", "restore_flow_control"]},
+    "verify_flow": {"observation_type": "verify_result", "target_code": "FEED-SYSTEM"},
+    "verify_t11": {"observation_type": "verify_result", "target_code": "T-1_T-11"},
+    "verify_elou": {"observation_type": "verify_result", "target_code": "ELOU"},
+    "verify_e15": {"observation_type": "verify_result", "target_code": "V-15"},
+    "verify_k1": {"observation_type": "verify_result", "target_code": "K-1"},
+    "verify_furnaces": {"observation_type": "verify_result", "target_code": "FURNACES"},
+    "verify_k2": {"observation_type": "verify_result", "target_code": "K-2"},
+    "verify_products": {"observation_type": "verify_result", "target_code": "PRODUCTS"},
+}
+
 # Второстепенные тревоги вспомогательных систем: методический шум, интенсивность
 # которого задаёт уровень сложности. Технологического смысла для сценария не несут.
 NUISANCE_ALARMS: dict[str, Any] = {
@@ -495,6 +518,7 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "process_model": PROCESS_MODEL,
     "control_actions": CONTROL_ACTIONS,
     "nuisance_alarms": NUISANCE_ALARMS,
+    "stage_checks": STAGE_CHECKS,
     # Опасная компенсация: наращивание тепла при уже упавшем расходе сырья.
     "safety": {"provisional": True, "feed_ratio_threshold": 0.95},
 }

@@ -198,3 +198,44 @@ class SessionAlarm(Base):
     source_event_id: Mapped[str | None] = mapped_column(
         ForeignKey("session_events.id", ondelete="SET NULL"), default=None
     )
+
+
+class OperatorObservation(Base):
+    """Явно зафиксированная оператором проверка состояния участка."""
+
+    __tablename__ = "operator_observations"
+    __table_args__ = (Index("ix_operator_observations_session_sim_time", "session_id", "sim_time_ms"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    request_id: Mapped[UuidStr] = mapped_column(unique=True)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    sequence_no: Mapped[int]
+    sim_time_ms: Mapped[int]
+    observation_type: Mapped[Code] = mapped_column(index=True)
+    target_code: Mapped[Code]
+    payload_json: Mapped[JsonDict]
+    received_at: Mapped[Timestamp]
+
+
+class OperatorDiagnosis(Base):
+    """Предполагаемая оператором первопричина отклонения."""
+
+    __tablename__ = "operator_diagnoses"
+    __table_args__ = (Index("ix_operator_diagnoses_session_sim_time", "session_id", "sim_time_ms"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    request_id: Mapped[UuidStr] = mapped_column(unique=True)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    sequence_no: Mapped[int]
+    sim_time_ms: Mapped[int]
+    affected_area_code: Mapped[Code]
+    deviation_code: Mapped[Code]
+    suspected_cause_code: Mapped[Code]
+    confidence: Mapped[float | None] = mapped_column(default=None)
+    # Внутреннее поле отчёта: во время прохождения оператору не возвращается.
+    is_correct: Mapped[bool]
+    received_at: Mapped[Timestamp]
