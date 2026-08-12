@@ -62,7 +62,13 @@ async def record_observation(
 ) -> ObservationReceipt:
     existing = await uow.sessions.find_observation(request_id)
     if existing is not None:
-        _require_same_session(existing.session_id, session_id, request_id)
+        _require_same_request(
+            existing.session_id == session_id
+            and existing.observation_type == observation_type
+            and existing.target_code == target_code
+            and existing.payload_json == dict(payload or {}),
+            request_id,
+        )
         return _observation_receipt(existing)
 
     training_session = await _running_session(uow, session_id)
@@ -101,7 +107,14 @@ async def submit_diagnosis(
 ) -> DiagnosisReceipt:
     existing = await uow.sessions.find_diagnosis(request_id)
     if existing is not None:
-        _require_same_session(existing.session_id, session_id, request_id)
+        _require_same_request(
+            existing.session_id == session_id
+            and existing.affected_area_code == affected_area_code
+            and existing.deviation_code == deviation_code
+            and existing.suspected_cause_code == suspected_cause_code
+            and existing.confidence == confidence,
+            request_id,
+        )
         return _diagnosis_receipt(existing)
 
     training_session = await _running_session(uow, session_id)
@@ -187,11 +200,16 @@ async def _load_scenario(uow: UnitOfWork, training_session: TrainingSession) -> 
     return scenario
 
 
-def _require_same_session(stored_session_id: str, session_id: str, request_id: str) -> None:
-    if stored_session_id != session_id:
+def _require_same_request(same: bool, request_id: str) -> None:
+    """Повтор возвращает прежний ответ только для той же самой записи.
+
+    Иначе клиент получил бы чек чужого наблюдения и решил, что его запись сделана.
+    """
+
+    if not same:
         raise ConflictError(
             "REQUEST_ID_ALREADY_USED",
-            "Этот request_id уже использован в другой сессии",
+            "Этот request_id уже использован для другой записи",
             {"request_id": request_id},
         )
 

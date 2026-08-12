@@ -144,3 +144,29 @@ async def test_observation_on_paused_session_is_refused(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "SESSION_NOT_RUNNING"
+
+
+async def test_reused_request_id_with_another_observation_is_refused(
+    client: AsyncClient, configuration: SeededConfiguration
+) -> None:
+    """Повтор идентификатора с другим телом не должен выдавать чек чужой записи."""
+
+    session_id = await running_session(client, configuration)
+    request_id = str(uuid4())
+    url = f"/api/v1/sessions/{session_id}/observations"
+    await client.post(
+        url,
+        json={
+            "request_id": request_id,
+            "observation_type": "inspect_equipment",
+            "target_code": "FEED-SYSTEM",
+        },
+    )
+
+    response = await client.post(
+        url,
+        json={"request_id": request_id, "observation_type": "inspect_equipment", "target_code": "ELOU"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "REQUEST_ID_ALREADY_USED"
