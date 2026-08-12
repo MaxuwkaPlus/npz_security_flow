@@ -159,6 +159,35 @@ async def test_repeated_request_id_does_not_create_second_action(
     assert len(actions) == 1
 
 
+async def test_reused_request_id_with_another_command_is_refused(
+    client: AsyncClient, configuration: SeededConfiguration, database: Database
+) -> None:
+    """Иначе клиент получил бы чек чужого действия и решил, что его команда исполнена."""
+
+    session_id = await running_session(client, configuration)
+    request_id = str(uuid4())
+    url = f"/api/v1/sessions/{session_id}/actions"
+    await client.post(
+        url, json={"request_id": request_id, "action_type": "start_feed_pump", "target_code": "N-1"}
+    )
+
+    response = await client.post(
+        url,
+        json={
+            "request_id": request_id,
+            "action_type": "set_control_valve",
+            "target_code": "FRC-404",
+            "value": {"opening_pct": 40.0},
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "REQUEST_ID_ALREADY_USED"
+    async with database.session_factory() as session:
+        actions = (await session.scalars(select(OperatorAction))).all()
+    assert len(actions) == 1
+
+
 async def test_command_on_paused_session_is_refused(
     client: AsyncClient, configuration: SeededConfiguration
 ) -> None:

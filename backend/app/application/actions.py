@@ -42,12 +42,17 @@ async def submit_action(
     target_code: str,
     value: Mapping[str, float] | None = None,
 ) -> ActionReceipt:
+    requested_value = {name: float(number) for name, number in (value or {}).items()}
     existing = await uow.sessions.find_action(request_id)
     if existing is not None:
-        if existing.session_id != session_id:
+        # Повтор возвращает прежний чек только для той же самой команды: иначе клиент
+        # получил бы ответ о чужом действии и решил, что его команда исполнена.
+        if existing.session_id != session_id or not _same_command(
+            existing, action_type, target_code, requested_value
+        ):
             raise ConflictError(
                 "REQUEST_ID_ALREADY_USED",
-                "Этот request_id уже использован в другой сессии",
+                "Этот request_id уже использован для другой команды",
                 {"request_id": request_id},
             )
         return _receipt(existing)
@@ -63,7 +68,6 @@ async def submit_action(
             {"status": status.value},
         )
 
-    requested_value = dict(value or {})
     scenario = await _load_scenario(uow, training_session)
     rejection = control_policy(scenario).check(action_type, target_code, requested_value)
 
@@ -118,6 +122,13 @@ async def cancel_action(uow: UnitOfWork, session_id: str, action_id: str) -> Act
         aggregate_id=action.id,
     )
     return _receipt(action)
+
+
+def _same_command(
+    action: OperatorAction, action_type: str, target_code: str, value: Mapping[str, float]
+) -> bool:
+    stored = {name: float(number) for name, number in action.requested_value_json.items()}
+    return action.action_type == action_type and action.target_code == target_code and stored == dict(value)
 
 
 async def _load_scenario(uow: UnitOfWork, training_session: TrainingSession) -> ScenarioVersion:
