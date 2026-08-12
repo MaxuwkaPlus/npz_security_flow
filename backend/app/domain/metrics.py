@@ -63,7 +63,7 @@ def _atmospheric_values(state: PlantState, config: TwinConfig) -> dict[str, Any]
         "k1_top_temp_c": round(k1.top_temp_c, 2),
         "k1_bottom_temp_c": round(k1.bottom_temp_c, 2),
         "k1_level_pct": round(k1.level_pct, 2),
-        "k1_online": 1.0 if is_online(k1.feed_ratio, downstream) else 0.0,
+        "k1_in_operation": 1.0 if k1.in_operation else 0.0,
         "furnace_feed_flow_ratio": round(furnaces.feed_ratio, 4),
         "furnace_heat_load_pct": round(furnaces.heat_load_pct, 2),
         "furnace_outlet_temp_c": round(furnaces.outlet_temp_c, 2),
@@ -73,7 +73,7 @@ def _atmospheric_values(state: PlantState, config: TwinConfig) -> dict[str, Any]
         "k2_top_temp_c": round(k2.top_temp_c, 2),
         "k2_bottom_temp_c": round(k2.bottom_temp_c, 2),
         "k2_stability_index": round(k2.stability_index, 4),
-        "k2_online": 1.0 if is_online(k2.load_ratio, downstream) else 0.0,
+        "k2_in_operation": 1.0 if k2.in_operation else 0.0,
         "side_draw_stability_index": round(k2.side_draw_stability_index, 4),
         "product_flow_stability_index": round(k2.product_stability_index, 4),
     }

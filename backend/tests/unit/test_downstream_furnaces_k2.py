@@ -42,6 +42,7 @@ def running_plant(seconds: int = 2_400) -> DownstreamState:
         commands=[
             Command(SET_WASH_WATER, "ELOU", {"ratio": 0.075}),
             Command(START_TRANSFER_PUMP, "N-20"),
+            Command(SET_FURNACE_HEAT_LOAD, "FURNACES", {"heat_load_pct": 100.0}),
         ],
     )
 
@@ -112,6 +113,24 @@ def test_lowering_heat_load_with_feed_keeps_ratio_safe() -> None:
     )
 
     assert heat_to_feed_ratio(balanced, CONFIG) < 1.05
+
+
+def test_unfired_furnaces_do_not_heat_the_product() -> None:
+    """Печи стартуют погашенными: продукт проходит с температурой низа К-1."""
+
+    state = run(
+        initial_downstream_state(),
+        feed_ratio=1.0,
+        seconds=2_400,
+        commands=[
+            Command(SET_WASH_WATER, "ELOU", {"ratio": 0.075}),
+            Command(START_TRANSFER_PUMP, "N-20"),
+        ],
+    )
+
+    assert state.furnaces.heat_load_pct == 0.0
+    assert heat_to_feed_ratio(state, CONFIG) == 0.0
+    assert state.furnaces.outlet_temp_c < 280.0
 
 
 def test_heat_load_is_limited_by_configuration() -> None:

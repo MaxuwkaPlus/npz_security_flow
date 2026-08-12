@@ -18,6 +18,20 @@ class ActionStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class ActionClassification(StrEnum):
+    """Классы действий из §10.2. Большинство определяется оценкой после окна эффекта."""
+
+    CORRECT = "correct"
+    UNNECESSARY = "unnecessary"
+    INEFFECTIVE = "ineffective"
+    DANGEROUS = "dangerous"
+    OUT_OF_SEQUENCE = "out_of_sequence"
+    REPEATED = "repeated"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+    UNVERIFIED = "unverified"
+
+
 class RejectionReason(StrEnum):
     UNKNOWN_ACTION_TYPE = "unknown_action_type"
     TARGET_NOT_ALLOWED = "target_not_allowed"

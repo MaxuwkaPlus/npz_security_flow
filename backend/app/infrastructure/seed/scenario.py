@@ -137,7 +137,15 @@ STAGES: tuple[StageSpec, ...] = (
             hold_ms=20_000,
         ),
     ),
-    StageSpec("furnaces", 240_000, rule(condition("furnace_heat_to_feed_ratio", "<=", 1.05), hold_ms=20_000)),
+    StageSpec(
+        "furnaces",
+        240_000,
+        rule(
+            condition("furnace_heat_to_feed_ratio", ">=", 0.95),
+            condition("furnace_heat_to_feed_ratio", "<=", 1.05),
+            hold_ms=20_000,
+        ),
+    ),
     StageSpec("k2", 300_000, rule(condition("k2_stability_index", ">=", 0.85), hold_ms=20_000)),
     StageSpec(
         "side_draws_and_products",
@@ -247,7 +255,7 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "L5",
         "K-1",
         rule(
-            condition("k1_online", ">=", 1.0),
+            condition("k1_in_operation", ">=", 1.0),
             condition("k1_feed_flow_ratio", "<", 0.91),
         ),
         rule(condition("k1_feed_flow_ratio", ">=", 0.95)),
@@ -278,7 +286,7 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "L5",
         "K-2",
         rule(
-            condition("k2_online", ">=", 1.0),
+            condition("k2_in_operation", ">=", 1.0),
             condition("k2_stability_index", "<", 0.55),
         ),
         rule(condition("k2_stability_index", ">=", 0.70)),
@@ -388,6 +396,7 @@ PROCESS_MODEL: dict[str, Any] = {
         "k1_base_level_pct": 50.0,
         "k1_level_sensitivity_pct": 65.0,
         "k1_time_constant_ms": 60_000,
+        "k1_operating_feed_ratio": 0.95,
         "furnace_nominal_heat_load_pct": 100.0,
         "furnace_max_heat_load_pct": 130.0,
         "furnace_base_outlet_temp_c": 340.0,
@@ -398,10 +407,11 @@ PROCESS_MODEL: dict[str, Any] = {
         "k2_pressure_sensitivity_bar": 0.65,
         "k2_base_top_temp_c": 142.0,
         "k2_top_temp_sensitivity_c": 33.0,
-        "k2_base_bottom_temp_c": 338.0,
-        "k2_bottom_temp_sensitivity_c": 74.0,
+        "k2_bottom_temp_offset_c": -2.0,
+        "k2_bottom_temp_sensitivity_c": 20.0,
         "k2_stability_feed_sensitivity": 4.5,
         "k2_stability_heat_sensitivity": 2.0,
+        "k2_operating_stability_index": 0.85,
         "k2_time_constant_ms": 90_000,
         "side_draw_stability_sensitivity": 5.3,
         "product_stability_sensitivity": 5.9,
@@ -463,4 +473,6 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "eligible_target_branches": DISTURBANCE_ELIGIBLE_BRANCHES,
     "process_model": PROCESS_MODEL,
     "control_actions": CONTROL_ACTIONS,
+    # Опасная компенсация: наращивание тепла при уже упавшем расходе сырья.
+    "safety": {"provisional": True, "feed_ratio_threshold": 0.95},
 }

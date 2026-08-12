@@ -10,12 +10,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
-from app.application.runtime_config import disturbance_of, simulation_clock, twin_config
+from app.application.runtime_config import disturbance_of, safety_policy, simulation_clock, twin_config
 from app.application.stages import advance_stage, load_stages
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
-from app.domain.commands import ActionStatus, Command
+from app.domain.commands import ActionClassification, ActionStatus, Command
 from app.domain.metrics import derived_values, rule_metrics, visible_values
+from app.domain.safety import (
+    DANGEROUS_HEAT_COMPENSATION,
+    SafetyPolicy,
+    is_dangerous_heat_compensation,
+)
 from app.domain.sessions import SessionCommand, SessionStatus, apply_command
 from app.domain.twin import PlantState, TwinConfig, initial_state, step
 from app.infrastructure.db.models import OperatorAction, ScenarioVersion, TrainingSession
@@ -69,7 +74,7 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
             Command(action.action_type, action.target_code, action.requested_value_json) for action in pending
         ],
     )
-    _mark_applied(uow, training_session, pending, before, plant, config)
+    _mark_applied(uow, training_session, pending, before, plant, config, safety_policy(scenario))
     # 7. Тревоги по правилам версии сценария.
     metrics = rule_metrics(plant, config)
     alarm_timers = await refresh_alarms(
@@ -107,6 +112,7 @@ def _mark_applied(
     before: PlantState,
     after: PlantState,
     config: TwinConfig,
+    safety: SafetyPolicy,
 ) -> None:
     """Фиксирует применение команды и состояние установки до и после воздействия."""
 
@@ -114,6 +120,8 @@ def _mark_applied(
         return
     before_values = visible_values(before, config)
     after_values = visible_values(after, config)
+    before_metrics = rule_metrics(before, config)
+    after_metrics = rule_metrics(after, config)
     for action in actions:
         action.status = ActionStatus.APPLIED
         action.before_state_json = before_values
@@ -125,6 +133,20 @@ def _mark_applied(
             {"action_type": action.action_type, "target_code": action.target_code},
             aggregate_id=action.id,
         )
+        if is_dangerous_heat_compensation(action.action_type, before_metrics, after_metrics, safety):
+            # Правило технолога, а не вывод оценки: класс проставляется сразу.
+            action.classification = ActionClassification.DANGEROUS
+            uow.sessions.append_event(
+                training_session,
+                DANGEROUS_HEAT_COMPENSATION,
+                "operator_action",
+                {
+                    "action_type": action.action_type,
+                    "min_branch_flow_ratio": before_metrics.get("min_branch_flow_ratio"),
+                    "heat_to_feed_ratio": after_metrics.get("furnace_heat_to_feed_ratio"),
+                },
+                aggregate_id=action.id,
+            )
 
 
 def plant_state(training_session: TrainingSession, config: TwinConfig) -> PlantState:

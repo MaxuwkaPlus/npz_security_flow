@@ -4,6 +4,10 @@
 Е-15 и Н-20, потом К-1, печи и К-2. Каждое звено видит уже сглаженный сигнал
 предыдущего, поэтому запаздывание нарастает вниз по цепочке само — так, как описано
 в §39 сценария, а не набором отдельных подобранных задержек.
+
+Общий принцип участков: тревога об отклонении от режима имеет смысл только после того,
+как участок хотя бы раз в этом режиме побывал. Поэтому у ступеней ЭЛОУ и у К-2 есть
+признак вывода в работу — при наполнении и разогреве значения законно вне нормы.
 """
 
 from collections.abc import Mapping, Sequence
@@ -53,6 +57,8 @@ class DownstreamConfig:
     k1_base_level_pct: float = 50.0
     k1_level_sensitivity_pct: float = 65.0
     k1_time_constant_ms: int = 60_000
+    # Подача, при которой К-1 считается выведенной в работу.
+    k1_operating_feed_ratio: float = 0.95
     furnace_nominal_heat_load_pct: float = 100.0
     furnace_max_heat_load_pct: float = 130.0
     furnace_base_outlet_temp_c: float = 340.0
@@ -64,12 +70,15 @@ class DownstreamConfig:
     k2_pressure_sensitivity_bar: float = 0.65
     k2_base_top_temp_c: float = 142.0
     k2_top_temp_sensitivity_c: float = 33.0
-    k2_base_bottom_temp_c: float = 338.0
-    k2_bottom_temp_sensitivity_c: float = 74.0
+    # Низ К-2 отслеживает температуру после печей.
+    k2_bottom_temp_offset_c: float = -2.0
+    k2_bottom_temp_sensitivity_c: float = 20.0
     # Устойчивость К-2 падает и от недобора сырья, и от перегрева печей.
     k2_stability_feed_sensitivity: float = 4.5
     k2_stability_heat_sensitivity: float = 2.0
     k2_time_constant_ms: int = 90_000
+    # Устойчивость, при которой К-2 считается выведенной в работу.
+    k2_operating_stability_index: float = 0.85
     side_draw_stability_sensitivity: float = 5.3
     product_stability_sensitivity: float = 5.9
     product_time_constant_ms: int = 120_000
@@ -115,6 +124,7 @@ class ColumnState:
     top_temp_c: float
     bottom_temp_c: float
     level_pct: float
+    in_operation: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +147,7 @@ class AtmosphericState:
     stability_index: float
     side_draw_stability_index: float
     product_stability_index: float
+    in_operation: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +182,7 @@ class DownstreamState:
                 "top_temp_c": self.k1.top_temp_c,
                 "bottom_temp_c": self.k1.bottom_temp_c,
                 "level_pct": self.k1.level_pct,
+                "in_operation": self.k1.in_operation,
             },
             "furnaces": {
                 "heat_load_pct": self.furnaces.heat_load_pct,
@@ -185,6 +197,7 @@ class DownstreamState:
                 "stability_index": self.k2.stability_index,
                 "side_draw_stability_index": self.k2.side_draw_stability_index,
                 "product_stability_index": self.k2.product_stability_index,
+                "in_operation": self.k2.in_operation,
             },
         }
 
@@ -218,6 +231,7 @@ class DownstreamState:
                 top_temp_c=float(k1.get("top_temp_c", 0.0)),
                 bottom_temp_c=float(k1.get("bottom_temp_c", 0.0)),
                 level_pct=float(k1.get("level_pct", 0.0)),
+                in_operation=bool(k1.get("in_operation", False)),
             ),
             furnaces=FurnaceState(
                 heat_load_pct=float(furnaces.get("heat_load_pct", 0.0)),
@@ -232,6 +246,7 @@ class DownstreamState:
                 stability_index=float(k2.get("stability_index", 0.0)),
                 side_draw_stability_index=float(k2.get("side_draw_stability_index", 0.0)),
                 product_stability_index=float(k2.get("product_stability_index", 0.0)),
+                in_operation=bool(k2.get("in_operation", False)),
             ),
         )
 
@@ -252,8 +267,15 @@ def initial_downstream_state() -> DownstreamState:
             stage2_in_operation=False,
         ),
         vessel=VesselState(load_ratio=0.0, level_pct=0.0, transfer_pump_running=False),
-        k1=ColumnState(feed_ratio=0.0, pressure_bar=0.0, top_temp_c=0.0, bottom_temp_c=0.0, level_pct=0.0),
-        furnaces=FurnaceState(heat_load_pct=100.0, feed_ratio=0.0, outlet_temp_c=0.0),
+        k1=ColumnState(
+            feed_ratio=0.0,
+            pressure_bar=0.0,
+            top_temp_c=0.0,
+            bottom_temp_c=0.0,
+            level_pct=0.0,
+            in_operation=False,
+        ),
+        furnaces=FurnaceState(heat_load_pct=0.0, feed_ratio=0.0, outlet_temp_c=0.0),
         k2=AtmosphericState(
             load_ratio=0.0,
             pressure_bar=0.0,
@@ -262,6 +284,7 @@ def initial_downstream_state() -> DownstreamState:
             stability_index=0.0,
             side_draw_stability_index=0.0,
             product_stability_index=0.0,
+            in_operation=False,
         ),
     )
 
@@ -382,13 +405,19 @@ def _step_k1(k1: ColumnState, config: DownstreamConfig, vessel: VesselState, dt_
     feed_ratio = approach(k1.feed_ratio, inlet_ratio, dt_ms, config.k1_load_time_constant_ms)
     if not is_online(feed_ratio, config):
         return ColumnState(
-            feed_ratio=feed_ratio, pressure_bar=0.0, top_temp_c=0.0, bottom_temp_c=0.0, level_pct=0.0
+            feed_ratio=feed_ratio,
+            pressure_bar=0.0,
+            top_temp_c=0.0,
+            bottom_temp_c=0.0,
+            level_pct=0.0,
+            in_operation=k1.in_operation,
         )
 
     deficit = max(0.0, 1.0 - feed_ratio)
     tau = config.k1_time_constant_ms
     return ColumnState(
         feed_ratio=feed_ratio,
+        in_operation=k1.in_operation or feed_ratio >= config.k1_operating_feed_ratio,
         pressure_bar=approach(
             k1.pressure_bar,
             config.k1_base_pressure_bar - config.k1_pressure_sensitivity_bar * deficit,
@@ -449,8 +478,10 @@ def _step_furnaces(
     if not is_online(feed_ratio, config):
         return FurnaceState(heat_load_pct=heat_load, feed_ratio=feed_ratio, outlet_temp_c=0.0)
 
-    excess = max(0.0, heat_load / config.furnace_nominal_heat_load_pct / feed_ratio - 1.0)
-    target = config.furnace_base_outlet_temp_c + config.furnace_outlet_temp_sensitivity_c * excess
+    # Без розжига продукт проходит печи с температурой низа К-1; номинальное тепло на
+    # номинальный расход даёт проектную температуру, избыток тепла — перегрев.
+    heat_per_feed = clamp(heat_load / config.furnace_nominal_heat_load_pct / feed_ratio, 0.0, 2.0)
+    target = k1.bottom_temp_c + (config.furnace_base_outlet_temp_c - k1.bottom_temp_c) * heat_per_feed
     return FurnaceState(
         heat_load_pct=heat_load,
         feed_ratio=feed_ratio,
@@ -471,6 +502,7 @@ def _step_k2(
             stability_index=0.0,
             side_draw_stability_index=0.0,
             product_stability_index=0.0,
+            in_operation=k2.in_operation,
         )
 
     deficit = max(0.0, 1.0 - load_ratio)
@@ -496,13 +528,17 @@ def _step_k2(
         top_temp_c=approach(
             k2.top_temp_c, config.k2_base_top_temp_c + config.k2_top_temp_sensitivity_c * deficit, dt_ms, tau
         ),
+        # Низ К-2 наследует температуру после печей, поэтому перегрев не считается дважды.
         bottom_temp_c=approach(
             k2.bottom_temp_c,
-            config.k2_base_bottom_temp_c + config.k2_bottom_temp_sensitivity_c * (deficit + heat_excess),
+            furnaces.outlet_temp_c
+            + config.k2_bottom_temp_offset_c
+            + config.k2_bottom_temp_sensitivity_c * deficit,
             dt_ms,
             tau,
         ),
         stability_index=approach(k2.stability_index, stability, dt_ms, tau),
+        in_operation=k2.in_operation or k2.stability_index >= config.k2_operating_stability_index,
         side_draw_stability_index=approach(
             k2.side_draw_stability_index,
             clamp(1.0 - config.side_draw_stability_sensitivity * deficit, 0.0, 1.0),
