@@ -234,6 +234,7 @@ ATMOSPHERIC_EQUIPMENT = [
             TagSpec(
                 "furnace_heat_to_feed_ratio", "ratio", normal_max=1.05, warning_max=1.15, critical_max=1.25
             ),
+            TagSpec("furnace_online", "0/1", value_type="int", normal_min=1.0),
         ),
     ),
     EquipmentSpec("P-1", "furnace", "Печь П-1", parent_code="FURNACES"),
@@ -249,6 +250,7 @@ ATMOSPHERIC_EQUIPMENT = [
             TagSpec("k2_top_temp_c", "degC", normal_max=142.0, critical_max=148.0),
             TagSpec("k2_bottom_temp_c", "degC", normal_max=342.0, critical_max=350.0),
             TagSpec("k2_stability_index", "ratio", normal_min=0.85, warning_min=0.70, critical_min=0.55),
+            TagSpec("k2_online", "0/1", value_type="int", normal_min=1.0),
         ),
     ),
     EquipmentSpec("CO-1", "circulating_reflux", "ЦО-1", parent_code="K-2"),

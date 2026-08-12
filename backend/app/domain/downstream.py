@@ -15,6 +15,7 @@ from app.domain.dynamics import approach, clamp
 
 SET_WASH_WATER = "set_wash_water"
 START_TRANSFER_PUMP = "start_transfer_pump"
+SET_FURNACE_HEAT_LOAD = "set_furnace_heat_load"
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +53,26 @@ class DownstreamConfig:
     k1_base_level_pct: float = 50.0
     k1_level_sensitivity_pct: float = 65.0
     k1_time_constant_ms: int = 60_000
+    furnace_nominal_heat_load_pct: float = 100.0
+    furnace_max_heat_load_pct: float = 130.0
+    furnace_base_outlet_temp_c: float = 340.0
+    # Насколько перегревается продукт при избытке тепла на единицу расхода.
+    furnace_outlet_temp_sensitivity_c: float = 112.0
+    furnace_time_constant_ms: int = 60_000
+    k2_load_time_constant_ms: int = 120_000
+    k2_base_pressure_bar: float = 0.62
+    k2_pressure_sensitivity_bar: float = 0.65
+    k2_base_top_temp_c: float = 142.0
+    k2_top_temp_sensitivity_c: float = 33.0
+    k2_base_bottom_temp_c: float = 338.0
+    k2_bottom_temp_sensitivity_c: float = 74.0
+    # Устойчивость К-2 падает и от недобора сырья, и от перегрева печей.
+    k2_stability_feed_sensitivity: float = 4.5
+    k2_stability_heat_sensitivity: float = 2.0
+    k2_time_constant_ms: int = 90_000
+    side_draw_stability_sensitivity: float = 5.3
+    product_stability_sensitivity: float = 5.9
+    product_time_constant_ms: int = 120_000
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "DownstreamConfig":
@@ -97,10 +118,34 @@ class ColumnState:
 
 
 @dataclass(frozen=True, slots=True)
+class FurnaceState:
+    """Печи П-1…П-3: тепловую нагрузку задаёт оператор, расход приходит из К-1."""
+
+    heat_load_pct: float
+    feed_ratio: float
+    outlet_temp_c: float
+
+
+@dataclass(frozen=True, slots=True)
+class AtmosphericState:
+    """К-2, боковые отборы и продуктовые линии."""
+
+    load_ratio: float
+    pressure_bar: float
+    top_temp_c: float
+    bottom_temp_c: float
+    stability_index: float
+    side_draw_stability_index: float
+    product_stability_index: float
+
+
+@dataclass(frozen=True, slots=True)
 class DownstreamState:
     elou: ElouState
     vessel: VesselState
     k1: ColumnState
+    furnaces: FurnaceState
+    k2: AtmosphericState
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -127,6 +172,20 @@ class DownstreamState:
                 "bottom_temp_c": self.k1.bottom_temp_c,
                 "level_pct": self.k1.level_pct,
             },
+            "furnaces": {
+                "heat_load_pct": self.furnaces.heat_load_pct,
+                "feed_ratio": self.furnaces.feed_ratio,
+                "outlet_temp_c": self.furnaces.outlet_temp_c,
+            },
+            "k2": {
+                "load_ratio": self.k2.load_ratio,
+                "pressure_bar": self.k2.pressure_bar,
+                "top_temp_c": self.k2.top_temp_c,
+                "bottom_temp_c": self.k2.bottom_temp_c,
+                "stability_index": self.k2.stability_index,
+                "side_draw_stability_index": self.k2.side_draw_stability_index,
+                "product_stability_index": self.k2.product_stability_index,
+            },
         }
 
     @classmethod
@@ -134,6 +193,8 @@ class DownstreamState:
         elou = data.get("elou", {})
         vessel = data.get("vessel", {})
         k1 = data.get("k1", {})
+        furnaces = data.get("furnaces", {})
+        k2 = data.get("k2", {})
         return cls(
             elou=ElouState(
                 wash_water_ratio=float(elou.get("wash_water_ratio", 0.0)),
@@ -158,6 +219,20 @@ class DownstreamState:
                 bottom_temp_c=float(k1.get("bottom_temp_c", 0.0)),
                 level_pct=float(k1.get("level_pct", 0.0)),
             ),
+            furnaces=FurnaceState(
+                heat_load_pct=float(furnaces.get("heat_load_pct", 0.0)),
+                feed_ratio=float(furnaces.get("feed_ratio", 0.0)),
+                outlet_temp_c=float(furnaces.get("outlet_temp_c", 0.0)),
+            ),
+            k2=AtmosphericState(
+                load_ratio=float(k2.get("load_ratio", 0.0)),
+                pressure_bar=float(k2.get("pressure_bar", 0.0)),
+                top_temp_c=float(k2.get("top_temp_c", 0.0)),
+                bottom_temp_c=float(k2.get("bottom_temp_c", 0.0)),
+                stability_index=float(k2.get("stability_index", 0.0)),
+                side_draw_stability_index=float(k2.get("side_draw_stability_index", 0.0)),
+                product_stability_index=float(k2.get("product_stability_index", 0.0)),
+            ),
         )
 
 
@@ -178,6 +253,16 @@ def initial_downstream_state() -> DownstreamState:
         ),
         vessel=VesselState(load_ratio=0.0, level_pct=0.0, transfer_pump_running=False),
         k1=ColumnState(feed_ratio=0.0, pressure_bar=0.0, top_temp_c=0.0, bottom_temp_c=0.0, level_pct=0.0),
+        furnaces=FurnaceState(heat_load_pct=100.0, feed_ratio=0.0, outlet_temp_c=0.0),
+        k2=AtmosphericState(
+            load_ratio=0.0,
+            pressure_bar=0.0,
+            top_temp_c=0.0,
+            bottom_temp_c=0.0,
+            stability_index=0.0,
+            side_draw_stability_index=0.0,
+            product_stability_index=0.0,
+        ),
     )
 
 
@@ -221,6 +306,8 @@ def step_downstream(
     )
     vessel = _step_vessel(state.vessel, config, stage2_load_ratio, commands, dt_ms)
     k1 = _step_k1(state.k1, config, vessel, dt_ms)
+    furnaces = _step_furnaces(state.furnaces, config, k1, commands, dt_ms)
+    k2 = _step_k2(state.k2, config, furnaces, dt_ms)
     return DownstreamState(
         elou=replace(
             elou,
@@ -239,6 +326,8 @@ def step_downstream(
         ),
         vessel=vessel,
         k1=k1,
+        furnaces=furnaces,
+        k2=k2,
     )
 
 
@@ -325,6 +414,106 @@ def _step_k1(k1: ColumnState, config: DownstreamConfig, vessel: VesselState, dt_
             ),
             0.0,
             100.0,
+        ),
+    )
+
+
+def heat_to_feed_ratio(state: DownstreamState, config: DownstreamConfig) -> float:
+    """Отношение тепловой нагрузки печей к относительному расходу сырья.
+
+    Главный показатель §30 сценария: если расход упал, а нагрузку не снизили,
+    отношение растёт — это и есть опасная компенсация симптома.
+    """
+
+    furnaces = state.furnaces
+    if not is_online(furnaces.feed_ratio, config):
+        return 0.0
+    heat = furnaces.heat_load_pct / config.furnace_nominal_heat_load_pct
+    return heat / max(furnaces.feed_ratio, config.section_min_load_ratio)
+
+
+def _step_furnaces(
+    furnaces: FurnaceState,
+    config: DownstreamConfig,
+    k1: ColumnState,
+    commands: Sequence[Command],
+    dt_ms: int,
+) -> FurnaceState:
+    heat_load = furnaces.heat_load_pct
+    for command in commands:
+        if command.action_type == SET_FURNACE_HEAT_LOAD:
+            requested = float(command.value.get("heat_load_pct", heat_load))
+            heat_load = clamp(requested, 0.0, config.furnace_max_heat_load_pct)
+
+    feed_ratio = approach(furnaces.feed_ratio, k1.feed_ratio, dt_ms, config.k1_load_time_constant_ms)
+    if not is_online(feed_ratio, config):
+        return FurnaceState(heat_load_pct=heat_load, feed_ratio=feed_ratio, outlet_temp_c=0.0)
+
+    excess = max(0.0, heat_load / config.furnace_nominal_heat_load_pct / feed_ratio - 1.0)
+    target = config.furnace_base_outlet_temp_c + config.furnace_outlet_temp_sensitivity_c * excess
+    return FurnaceState(
+        heat_load_pct=heat_load,
+        feed_ratio=feed_ratio,
+        outlet_temp_c=approach(furnaces.outlet_temp_c, target, dt_ms, config.furnace_time_constant_ms),
+    )
+
+
+def _step_k2(
+    k2: AtmosphericState, config: DownstreamConfig, furnaces: FurnaceState, dt_ms: int
+) -> AtmosphericState:
+    load_ratio = approach(k2.load_ratio, furnaces.feed_ratio, dt_ms, config.k2_load_time_constant_ms)
+    if not is_online(load_ratio, config):
+        return AtmosphericState(
+            load_ratio=load_ratio,
+            pressure_bar=0.0,
+            top_temp_c=0.0,
+            bottom_temp_c=0.0,
+            stability_index=0.0,
+            side_draw_stability_index=0.0,
+            product_stability_index=0.0,
+        )
+
+    deficit = max(0.0, 1.0 - load_ratio)
+    heat_excess = max(
+        0.0, furnaces.heat_load_pct / config.furnace_nominal_heat_load_pct / max(load_ratio, 0.05) - 1.0
+    )
+    tau = config.k2_time_constant_ms
+    stability = clamp(
+        1.0
+        - config.k2_stability_feed_sensitivity * deficit
+        - config.k2_stability_heat_sensitivity * heat_excess,
+        0.0,
+        1.0,
+    )
+    return AtmosphericState(
+        load_ratio=load_ratio,
+        pressure_bar=approach(
+            k2.pressure_bar,
+            config.k2_base_pressure_bar + config.k2_pressure_sensitivity_bar * deficit,
+            dt_ms,
+            tau,
+        ),
+        top_temp_c=approach(
+            k2.top_temp_c, config.k2_base_top_temp_c + config.k2_top_temp_sensitivity_c * deficit, dt_ms, tau
+        ),
+        bottom_temp_c=approach(
+            k2.bottom_temp_c,
+            config.k2_base_bottom_temp_c + config.k2_bottom_temp_sensitivity_c * (deficit + heat_excess),
+            dt_ms,
+            tau,
+        ),
+        stability_index=approach(k2.stability_index, stability, dt_ms, tau),
+        side_draw_stability_index=approach(
+            k2.side_draw_stability_index,
+            clamp(1.0 - config.side_draw_stability_sensitivity * deficit, 0.0, 1.0),
+            dt_ms,
+            config.product_time_constant_ms,
+        ),
+        product_stability_index=approach(
+            k2.product_stability_index,
+            clamp(1.0 - config.product_stability_sensitivity * deficit, 0.0, 1.0),
+            dt_ms,
+            config.product_time_constant_ms,
         ),
     )
 

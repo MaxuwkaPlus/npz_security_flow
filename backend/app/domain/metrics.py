@@ -7,7 +7,7 @@
 
 from typing import Any
 
-from app.domain.downstream import DownstreamConfig, hv_trip_count, is_online
+from app.domain.downstream import DownstreamConfig, heat_to_feed_ratio, hv_trip_count, is_online
 from app.domain.twin import BRANCH_COUNT, PlantState, TwinConfig
 
 PUMP_STATE_RUNNING = "RUNNING"
@@ -53,6 +53,8 @@ def _atmospheric_values(state: PlantState, config: TwinConfig) -> dict[str, Any]
     downstream = DownstreamConfig.from_json(config.downstream)
     vessel = state.downstream.vessel
     k1 = state.downstream.k1
+    furnaces = state.downstream.furnaces
+    k2 = state.downstream.k2
     return {
         "e15_level_pct": round(vessel.level_pct, 2),
         "n20_state": PUMP_STATE_RUNNING if vessel.transfer_pump_running else PUMP_STATE_STOPPED,
@@ -62,6 +64,18 @@ def _atmospheric_values(state: PlantState, config: TwinConfig) -> dict[str, Any]
         "k1_bottom_temp_c": round(k1.bottom_temp_c, 2),
         "k1_level_pct": round(k1.level_pct, 2),
         "k1_online": 1.0 if is_online(k1.feed_ratio, downstream) else 0.0,
+        "furnace_feed_flow_ratio": round(furnaces.feed_ratio, 4),
+        "furnace_heat_load_pct": round(furnaces.heat_load_pct, 2),
+        "furnace_outlet_temp_c": round(furnaces.outlet_temp_c, 2),
+        "furnace_heat_to_feed_ratio": round(heat_to_feed_ratio(state.downstream, downstream), 4),
+        "furnace_online": 1.0 if is_online(furnaces.feed_ratio, downstream) else 0.0,
+        "k2_pressure_bar": round(k2.pressure_bar, 3),
+        "k2_top_temp_c": round(k2.top_temp_c, 2),
+        "k2_bottom_temp_c": round(k2.bottom_temp_c, 2),
+        "k2_stability_index": round(k2.stability_index, 4),
+        "k2_online": 1.0 if is_online(k2.load_ratio, downstream) else 0.0,
+        "side_draw_stability_index": round(k2.side_draw_stability_index, 4),
+        "product_flow_stability_index": round(k2.product_stability_index, 4),
     }
 
 

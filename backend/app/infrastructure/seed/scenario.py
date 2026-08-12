@@ -266,7 +266,10 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "unsafe_furnace_heat_to_feed",
         "L5",
         "FURNACES",
-        rule(condition("furnace_heat_to_feed_ratio", ">", 1.25)),
+        rule(
+            condition("furnace_online", ">=", 1.0),
+            condition("furnace_heat_to_feed_ratio", ">", 1.25),
+        ),
         rule(condition("furnace_heat_to_feed_ratio", "<=", 1.10)),
         "Опасное соотношение тепловой нагрузки печей и расхода сырья",
     ),
@@ -274,7 +277,10 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "k2_critical_instability",
         "L5",
         "K-2",
-        rule(condition("k2_stability_index", "<", 0.55), condition("k2_stability_index", ">", 0.0)),
+        rule(
+            condition("k2_online", ">=", 1.0),
+            condition("k2_stability_index", "<", 0.55),
+        ),
         rule(condition("k2_stability_index", ">=", 0.70)),
         "Критическое снижение устойчивости К-2",
     ),
@@ -331,6 +337,10 @@ CONTROL_ACTIONS: dict[str, Any] = {
     # Вода на смешение: 5–10 % от расхода нефти по регламенту, ввод ограничен 20 %.
     "set_wash_water": {"targets": ["ELOU"], "value_bounds": {"ratio": [0.0, 0.20]}},
     "start_transfer_pump": {"targets": ["N-20", "N-20A", "N-20B"]},
+    "set_furnace_heat_load": {
+        "targets": ["FURNACES"],
+        "value_bounds": {"heat_load_pct": [0.0, 130.0]},
+    },
 }
 
 # Коэффициенты упрощённого двойника. Значения демонстрационные (§23 ТЗ).
@@ -378,6 +388,24 @@ PROCESS_MODEL: dict[str, Any] = {
         "k1_base_level_pct": 50.0,
         "k1_level_sensitivity_pct": 65.0,
         "k1_time_constant_ms": 60_000,
+        "furnace_nominal_heat_load_pct": 100.0,
+        "furnace_max_heat_load_pct": 130.0,
+        "furnace_base_outlet_temp_c": 340.0,
+        "furnace_outlet_temp_sensitivity_c": 112.0,
+        "furnace_time_constant_ms": 60_000,
+        "k2_load_time_constant_ms": 120_000,
+        "k2_base_pressure_bar": 0.62,
+        "k2_pressure_sensitivity_bar": 0.65,
+        "k2_base_top_temp_c": 142.0,
+        "k2_top_temp_sensitivity_c": 33.0,
+        "k2_base_bottom_temp_c": 338.0,
+        "k2_bottom_temp_sensitivity_c": 74.0,
+        "k2_stability_feed_sensitivity": 4.5,
+        "k2_stability_heat_sensitivity": 2.0,
+        "k2_time_constant_ms": 90_000,
+        "side_draw_stability_sensitivity": 5.3,
+        "product_stability_sensitivity": 5.9,
+        "product_time_constant_ms": 120_000,
         "wash_water_max_ratio": 0.20,
     },
 }
