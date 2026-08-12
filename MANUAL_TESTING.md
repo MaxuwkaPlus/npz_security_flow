@@ -1,10 +1,12 @@
 # План ручного тестирования backend
 
-Пошаговое прохождение каждой ручки API в порядке сценария: что подаём на вход и что
-должно получиться. У каждого вызова явно указано, откуда берётся каждый параметр
-(с номером предыдущего шага) и куда идёт результат. Ожидания выведены из
-опубликованной конфигурации сценария — порогов, allowlist и правил, — а не из
-подогнанного прогона.
+Пошаговое прохождение каждой ручки API в порядке сценария через встроенную
+Swagger-страницу **`http://localhost:8000/docs`** — там видно и что отправляешь,
+и что пришло в ответ, без ручного парсинга JSON в терминале. У каждого шага
+указано: в каком теге `/docs` искать ручку, что вставить в `Request body`/поля
+пути, какой ответ ожидать и откуда взять значение для следующего шага.
+Ожидания выведены из опубликованной конфигурации сценария — порогов, allowlist
+и правил, — а не из подогнанного прогона.
 
 Требования к поведению: [техническое задание](docs/BACKEND_PROJECT_SPEC.md).
 Предметный сценарий: [сценарий тренажёра](docs/TRAINER_SCENARIO.md).
@@ -28,107 +30,169 @@ uv run uvicorn app.main:app --port 8000
 политики оценки. Повторный `seed` печатает **те же идентификаторы** — публикация
 идемпотентна.
 
-Во втором терминале:
+Откройте в браузере **`http://localhost:8000/docs`** — дальше весь план ведётся
+через эту страницу. Ручки сгруппированы по тегам: **service** (health/ready),
+**catalog** (сценарии, установка), **sessions** (сессия, команды, наблюдения,
+тревоги, SAGAT, NASA-TLX), **reports** (отчёт).
 
-```bash
-cd backend
-export API=http://localhost:8000/api/v1
-```
+Для каждой ручки одинаковый порядок действий: разверните строку → **Try it
+out** → заполните `Parameters`/`Request body` → **Execute** → результат
+смотрите в блоке **Server response → Response body**.
 
-О скорости: `10` — чтобы успевать читать показания и вводить команды; `60`–`300` —
-чтобы быстро увидеть весь цикл. Всё симуляционное время ниже указано в секундах
-сценария, а не реальных.
+О скорости симуляции: `10` — чтобы успевать читать показания и вводить команды;
+`60`–`300` — чтобы быстро увидеть весь цикл. Всё симуляционное время ниже
+указано в секундах сценария, а не реальных.
+
+Часть проверок в `/docs` не делается принципиально — это не недостаток
+документа, а особенность API:
+
+- **показания приборов** (расходы, температуры, уровни) отдаются только через
+  WebSocket (раздел 11) или снимками в БД — в REST-ответах их нет, поэтому в
+  разделах 5–8 используется вспомогательный Python-скрипт, читающий БД напрямую;
+- **скрытая причина возмущения** нарочно не имеет ни одной ручки — подглядеть
+  её можно только прямым запросом к БД (раздел 8), в обход API;
+- **WebSocket** Swagger не умеет вызывать — для раздела 11 нужен отдельный
+  скрипт.
+
+Это те же самые исключения, что перечислены в архитектурных правилах проекта:
+скрытое состояние не должно быть достижимо через публичный API.
 
 ---
 
 ## Карта переменных
 
-Один раз собранная шпаргалка: какая переменная из какой ручки берётся и в какую
-ручку/поле подставляется дальше. Все переменные — `export`, поэтому живут в
-терминале до его закрытия.
+Один раз собранная шпаргалка: из какого шага и какого поля **Response body**
+скопировать значение и в какое поле следующей ручки (path-параметр в
+`Parameters` или ключ в `Request body`) его вставить. В примерах ниже такие
+места помечены `<ТАК>`.
 
-| Переменная | Получаем из (шаг) | Поле ответа | Подставляем в (шаг) | Куда именно |
+| Плейсхолдер | Копируем из шага | Поле `Response body` | Вставляем на шаге | Куда именно |
 |---|---|---|---|---|
-| `$SC` | `GET /scenarios` (1.3) | `[0].id` | 1.4, 1.5→`$INST`, 2.1 | путь и тело `scenario_version_id` |
-| `$INST` | `GET /scenarios/$SC` (1.4) | `.installation_version_id` | 1.5 | путь `/installations/{id}/topology` |
-| `$SID` | `POST /sessions` (2.1) | `.id` | все шаги 2–13 | путь `/sessions/{id}/...` |
-| `$AID` | `POST /sessions/$SID/actions` (4.1) | `.id` | 4.2 | путь `/actions/{id}/cancel` |
-| `$AL` | `GET /sessions/$SID/alarms` (7.1) | `[0].id` | 7.2 | путь `/alarms/{id}/acknowledge` |
-| `$CP` | `GET /sessions/$SID/sagat/current` (9.1) | `.id` | 9.2 | путь `/sagat/{id}/answers` |
-| `$V` | любой ответ о сессии | `.version_no` | `/pause`, `/resume` и т.д. | тело `expected_version` (опц.) |
-| `op-1` | придумываем сами в 2.1 | тело `operator_id` | 12.2 | путь `/operators/{id}/level-comparison` |
+| `<SC>` | 1.3 `GET /scenarios` | `[0].id` | 1.4, 1.5→`<INST>`, 2.1 | путь `scenario_version_id`; тело `scenario_version_id` |
+| `<INST>` | 1.4 `GET /scenarios/{id}` | `.installation_version_id` | 1.5 | путь `installation_version_id` |
+| `<SID>` | 2.1 `POST /sessions` | `.id` | все шаги 2–13 | путь `session_id` |
+| `<AID>` | 4.2 `POST .../actions` | `.id` | 4.2 (отмена) | путь `action_id` |
+| `<AL>` | 7.1 `GET .../alarms` | `[0].id` | 7.2 | путь `alarm_id` |
+| `<CP>` | 9.1 `GET .../sagat/current` | `.id` | 9.2 | путь `checkpoint_id` |
+| `<V>` | любой ответ о сессии | `.version_no` | `/pause`, `/resume` и т.д. | тело `expected_version` (опц.) |
 
-Правило простое: **каждый `id` из ответа одной ручки становится путевым параметром
-следующей**. Ниже — по шагам.
+Правило простое: **каждый `id` из `Response body` одной ручки становится
+параметром следующей**. Ниже — по шагам.
 
 ---
 
 ## 1. Каталог
 
-### 1.1 `GET /health`
+### 1.1 `GET /health` (тег **service**)
 
-```bash
-curl -s $API/health
+**Parameters:** нет. **Execute** без изменений.
+
+**Response body:**
+```json
+{ "status": "ok" }
 ```
 
-**Ожидаемо:** `{"status":"ok"}`. Входов нет.
+### 1.2 `GET /ready` (тег **service**)
 
-### 1.2 `GET /ready`
+**Response body:**
+```json
+{ "status": "ready" }
+```
+Означает, что проверено соединение с БД.
 
-```bash
-curl -s $API/ready
+### 1.3 `GET /scenarios` (тег **catalog**)
+
+**Parameters:** нет.
+
+**Response body** (пример — у вас будет другой `id`, он генерируется при
+первом `seed` на вашей БД и дальше не меняется; `scenario_code`, `name`,
+`duration_ms` — те же, они заданы конфигурацией):
+
+```json
+[
+  {
+    "id": "cff13aba-b665-43fc-8f2f-7a365c47f8a7",
+    "scenario_code": "ELOU-AVT-FULL-RUN",
+    "version": 1,
+    "name": "Сквозной сценарий ЭЛОУ-АВТ",
+    "description": "Пуск установки, вывод в устойчивый режим, скрытое снижение расхода одной сырьевой ветви, диагностика, восстановление и downstream-проверки.",
+    "duration_ms": 3900000,
+    "installation_version_id": "e3b826ef-28fe-4580-9863-3c3e630d61a0"
+  }
+]
 ```
 
-**Ожидаемо:** `{"status":"ready"}` — проверено соединение с БД.
+**Забираем:** `[0].id` → `<SC>`, используется на шаге 1.4 (путь) и 2.1 (тело).
+Заодно видно `[0].installation_version_id` — тот же, что вы получите отдельно
+на шаге 1.4, можно скопировать сразу как `<INST>` и пропустить 1.4.
 
-### 1.3 `GET /scenarios`
+### 1.4 `GET /scenarios/{scenario_version_id}` (тег **catalog**)
 
-```bash
-curl -s $API/scenarios | python3 -m json.tool
-export SC=$(curl -s $API/scenarios | python3 -c 'import json,sys;print(json.load(sys.stdin)[0]["id"])')
-echo $SC
+**Parameters:** поле `scenario_version_id` → вставьте `<SC>` из 1.3.
+
+**Response body** (пример, сокращено):
+```json
+{
+  "id": "cff13aba-b665-43fc-8f2f-7a365c47f8a7",
+  "scenario_code": "ELOU-AVT-FULL-RUN",
+  "version": 1,
+  "duration_ms": 3900000,
+  "installation_version_id": "e3b826ef-28fe-4580-9863-3c3e630d61a0",
+  "levels": [
+    { "level_no": 1, "sensor_delay_ms": 0, "nuisance_alarm_rate": 0.4, "reaction_deadline_ms": 120000, "development_speed_factor": 0.8, "hints_enabled": true },
+    { "level_no": 2, "sensor_delay_ms": 2500, "nuisance_alarm_rate": 2.0, "reaction_deadline_ms": 90000, "development_speed_factor": 1.0, "hints_enabled": true },
+    { "level_no": 3, "sensor_delay_ms": 6000, "nuisance_alarm_rate": 4.5, "reaction_deadline_ms": 60000, "development_speed_factor": 1.6, "hints_enabled": false }
+  ],
+  "stages": [
+    { "code": "precheck", "order_no": 1, "timeout_ms": 240000, "required_checks": ["feed_system_ready", "heat_exchangers_ready", "elou_ready", "atmospheric_ready"] }
+  ]
+}
 ```
 
-**Ожидаемо:** массив из одного элемента, `scenario_code: ELOU-AVT-FULL-RUN`,
-`duration_ms: 3900000`.
+**Ожидаемо:** три уровня `1/2/3`, двадцать этапов от `precheck` до
+`final_stabilization` (в примере показан только первый).
 
-**Забираем:** `$SC` = `[0].id` → используется в 1.4 и в теле `POST /sessions` (2.1).
-
-### 1.4 `GET /scenarios/{scenario_version_id}`
-
-**Вход:** `$SC` из 1.3, подставляется в путь.
-
-```bash
-curl -s $API/scenarios/$SC | python3 -m json.tool
-export INST=$(curl -s $API/scenarios/$SC | python3 -c 'import json,sys;print(json.load(sys.stdin)["installation_version_id"])')
-```
-
-**Ожидаемо:** три уровня сложности (`level_no` 1/2/3), двадцать этапов от
-`precheck` до `final_stabilization`.
-
-**Проверка утечки:** в ответе **нет** слов `disturbance`, `hidden`,
+**Проверка утечки:** нигде в ответе **нет** слов `disturbance`, `hidden`,
 `pump_capacity_loss`, `valve_stiction`, `target_selector`.
 
-**Забираем:** `$INST` = `.installation_version_id` → путь `GET /installations/{id}/topology` (1.5).
+**Забираем:** `.installation_version_id` → `<INST>`, используется на шаге 1.5
+(путь).
 
-### 1.5 `GET /installations/{installation_version_id}/topology`
+### 1.5 `GET /installations/{installation_version_id}/topology` (тег **catalog**)
 
-**Вход:** `$INST` из 1.4, подставляется в путь.
+**Parameters:** поле `installation_version_id` → вставьте `<INST>` из 1.4.
 
-```bash
-curl -s $API/installations/$INST/topology | python3 -c \
-  'import json,sys;d=json.load(sys.stdin);print(len(d["equipment"]),"аппаратов,",len(d["edges"]),"связей")'
+**Response body** (пример, сокращено):
+```json
+{
+  "installation_version_id": "e3b826ef-28fe-4580-9863-3c3e630d61a0",
+  "installation_code": "ELOU-AVT",
+  "version": 1,
+  "name": "ЭЛОУ-АВТ",
+  "equipment": [
+    {
+      "code": "FRC-405",
+      "equipment_type": "controller",
+      "display_name": "Регулятор расхода ветви 2",
+      "parent_code": "FEED-SYSTEM",
+      "tags": [
+        { "code": "branch_2_flow_tph", "unit": "т/ч", "value_type": "float", "normal_min": 90.0, "normal_max": 105.0, "warning_min": 88.0, "warning_max": null, "critical_min": 88.0, "critical_max": null }
+      ]
+    }
+  ],
+  "edges": [
+    { "from_code": "FEED-SYSTEM", "to_code": "T-1_T-11", "stream_code": "raw_feed", "stream_type": "process", "branch_no": 2 }
+  ]
+}
 ```
 
-**Ожидаемо:** около 52 аппаратов и 50 связей. Среди кодов есть `FRC-404/405/406`,
-`T-1_T-11`, `ELOU`, `V-15`, `K-1`, `FURNACES`, `K-2`, `PRODUCTS`. У `FRC-405` есть
-тег `branch_2_flow_tph` с `critical_min: 88.0`. Новых переменных этот шаг не даёт.
+**Ожидаемо:** около 52 аппаратов и 50 связей (в примере — по одному, для
+формата). Среди кодов есть `FRC-404/405/406`, `T-1_T-11`, `ELOU`, `V-15`,
+`K-1`, `FURNACES`, `K-2`, `PRODUCTS`. Новых переменных шаг не даёт.
 
-### 1.6 Несуществующий путь (негативная проверка)
+### 1.6 Несуществующий путь (негативная проверка, вне `/docs`)
 
-```bash
-curl -s -i $API/nope
-```
+Откройте напрямую в браузере: `http://localhost:8000/api/v1/nope`.
 
 **Ожидаемо:** `404`, тело `{"error":{"code":"HTTP_ERROR",...,"request_id":"..."}}`.
 
@@ -136,88 +200,99 @@ curl -s -i $API/nope
 
 ## 2. Жизненный цикл сессии
 
-### 2.1 `POST /sessions`
+### 2.1 `POST /sessions` (тег **sessions**)
 
-**Вход:** `$SC` из 1.3 → тело `scenario_version_id`. Остальные поля придумываем сами:
-`operator_id` — любая строка (используем `op-1`, она понадобится в 12.2),
-`level_no` — 1..3, `random_seed` — фиксируем, чтобы прохождение было воспроизводимо
-(нужно для раздела 13).
+**Request body** — `scenario_version_id` берём из `<SC>` (1.3), остальное
+придумываем сами: `operator_id` — любая строка (используем `op-1`, она
+понадобится в 12.2), `level_no` — 1..3, `random_seed` — фиксируем, чтобы
+прохождение было воспроизводимо (понадобится в разделе 13):
 
-```bash
-curl -s -X POST $API/sessions -H 'content-type: application/json' \
-  -d "{\"request_id\":\"c1\",\"operator_id\":\"op-1\",\"scenario_version_id\":\"$SC\",\"level_no\":1,\"random_seed\":7}" \
-  | python3 -m json.tool
-
-export SID=$(curl -s -X POST $API/sessions -H 'content-type: application/json' \
-  -d "{\"request_id\":\"c1-dup-check\",\"operator_id\":\"op-1\",\"scenario_version_id\":\"$SC\",\"level_no\":1,\"random_seed\":7}" \
-  | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
-echo $SID
+```json
+{
+  "request_id": "c1",
+  "operator_id": "op-1",
+  "scenario_version_id": "<SC>",
+  "level_no": 1,
+  "random_seed": 7
+}
 ```
 
-(Второй вызов с новым `request_id` — намеренно: если хотите переиспользовать
-именно ответ первого, просто распарсите его `id`, они делают одно и то же.)
+**Response body:**
+```json
+{
+  "id": "6f1a...-session",
+  "operator_id": "op-1",
+  "instructor_id": null,
+  "scenario_version_id": "<SC>",
+  "level_no": 1,
+  "status": "ready",
+  "sim_time_ms": 0,
+  "sequence_no": 2,
+  "current_stage_code": "precheck",
+  "version_no": 1,
+  "final_outcome": null
+}
+```
 
 **Ожидаемо:** `201`, `status: "ready"` — конфигурация фиксируется прямо при
-создании; `sim_time_ms: 0`, `current_stage_code: "precheck"`, `version_no: 1`.
-В ответе **нет** полей `random_seed`, `hidden`, `target_branch`.
+создании. В ответе **нет** полей `random_seed`, `hidden`, `target_branch`.
 
-**Забираем:** `$SID` = `.id` → путь всех последующих `/sessions/{id}/...` (шаги
-2.2–13). `.version_no` можно сохранить как `$V` для проверки в 2.7.
+**Забираем:** `.id` → `<SID>`, используется в путях всех шагов 2.2–13.
+`.version_no` можно запомнить как `<V>` для проверки в 2.6.
 
-### 2.2 Валидация при создании (без новых переменных, вход — `$SC`)
+### 2.2 Валидация при создании (без новых переменных)
 
-| Вход | Ожидаемо |
+Повторяйте **Try it out** на той же ручке `POST /sessions`, меняя тело:
+
+| Request body | Ожидаемо |
 |---|---|
-| повтор c тем же `request_id: c1` | тот же `id` сессии, вторая сессия не создаётся |
+| тот же `request_id: "c1"`, что и в 2.1 | тот же `id` сессии, что и в 2.1 — вторая сессия не создаётся |
 | `level_no: 0` или `4` | `422`, код `VALIDATION_ERROR` |
 | `scenario_version_id: "не-uuid"` | `404`, код `SCENARIO_NOT_FOUND` |
 
-### 2.3 `POST /sessions/{id}/pause` до старта (негативная проверка)
+### 2.3 `POST /sessions/{session_id}/pause` до старта (негативная проверка)
 
-**Вход:** `$SID` из 2.1.
-
-```bash
-curl -s -i -X POST $API/sessions/$SID/pause -H 'content-type: application/json' -d '{"request_id":"p0"}'
+**Parameters:** `session_id` → `<SID>` из 2.1. **Request body:**
+```json
+{ "request_id": "p0" }
 ```
 
 **Ожидаемо:** `409`, код `SESSION_TRANSITION_NOT_ALLOWED`, `details.status: "ready"`.
 
-### 2.4 `POST /sessions/{id}/start`
+### 2.4 `POST /sessions/{session_id}/start`
 
-**Вход:** `$SID` из 2.1.
-
-```bash
-curl -s -X POST $API/sessions/$SID/start -H 'content-type: application/json' -d '{"request_id":"s1"}'
+**Parameters:** `session_id` → `<SID>`. **Request body:**
+```json
+{ "request_id": "s1" }
 ```
 
 **Ожидаемо:** `status: "running"`. С этого момента идёт симуляционное время —
 фоновый tick-раннер запущен.
 
-### 2.5 `POST /sessions/{id}/pause` / `GET /sessions/{id}/state` / `POST /sessions/{id}/resume`
+### 2.5 Пауза останавливает время
 
-**Вход:** `$SID` из 2.1.
+Три вызова подряд, все с `session_id = <SID>`:
 
-```bash
-curl -s -X POST $API/sessions/$SID/pause -H 'content-type: application/json' -d '{"request_id":"p1"}'
-sleep 10
-curl -s $API/sessions/$SID/state          # проверяем, что sim_time_ms не изменился
-curl -s -X POST $API/sessions/$SID/resume -H 'content-type: application/json' -d '{"request_id":"p2"}'
-```
+1. `POST /sessions/{session_id}/pause`, тело `{"request_id":"p1"}`.
+2. Подождите 10 секунд реального времени.
+3. `GET /sessions/{session_id}/state` — сравните `sim_time_ms` с тем, что было
+   в ответе шага 1: **должно быть то же число**.
+4. `POST /sessions/{session_id}/resume`, тело `{"request_id":"p2"}`.
 
-**Ожидаемо:** между `pause` и `resume` `sim_time_ms` **стоит на месте**. Повтор
-`pause` с `request_id: p1` возвращает прежний ответ и не создаёт второй переход.
-`GET /sessions/{id}` (без `/state`) отдаёт то же самое — это один и тот же
-хендлер, оба пути равнозначны.
+**Ожидаемо:** между `pause` и `resume` `sim_time_ms` **стоит на месте**.
+Повторный `pause` с тем же `request_id: "p1"` возвращает прежний ответ и не
+создаёт второй переход. `GET /sessions/{session_id}` (без `/state`) отдаёт то
+же самое — это один и тот же хендлер.
 
 ### 2.6 Проверка версии
 
-**Вход:** `$SID` из 2.1; текущий `version_no` берём из ответа 2.5 (`GET /state`).
+**Parameters:** `session_id` → `<SID>`. Сначала `GET /sessions/{session_id}/state`,
+заберите `.version_no` — допустим, получили `4`. Затем `POST
+/sessions/{session_id}/pause` с телом, где `expected_version` заведомо
+устаревший:
 
-```bash
-curl -s $API/sessions/$SID/state | python3 -c 'import json,sys;print(json.load(sys.stdin)["version_no"])'
-# допустим, получили 4 — отправляем заведомо устаревшую версию 1
-curl -s -i -X POST $API/sessions/$SID/pause -H 'content-type: application/json' \
-  -d '{"request_id":"x1","expected_version":1}'
+```json
+{ "request_id": "x1", "expected_version": 1 }
 ```
 
 **Ожидаемо:** `409`, код `SESSION_VERSION_MISMATCH`, в `details` видны
@@ -227,22 +302,30 @@ curl -s -i -X POST $API/sessions/$SID/pause -H 'content-type: application/json' 
 
 ## 3. Осмотр установки — этап `precheck`
 
-**Вход везде:** `$SID` из 2.1. Этап ждёт четыре явные проверки, без них закроется
-таймаутом на 240-й секунде симуляции.
+**Parameters везде:** `session_id` → `<SID>` из 2.1. Этап ждёт четыре явные
+проверки, без них закроется таймаутом на 240-й секунде симуляции.
 
-### 3.1 `POST /sessions/{id}/observations` ×4
+### 3.1 `POST /sessions/{session_id}/observations` ×4 (тег **sessions**)
 
-```bash
-for T in FEED-SYSTEM T-1_T-11 ELOU K-2; do
-  curl -s -X POST $API/sessions/$SID/observations -H 'content-type: application/json' \
-    -d "{\"request_id\":\"o-$T\",\"observation_type\":\"inspect_equipment\",\"target_code\":\"$T\"}"; echo
-done
-curl -s $API/sessions/$SID/state
+Отправьте по очереди четыре тела (каждый раз **Execute** заново):
+```json
+{ "request_id": "o-FEED-SYSTEM", "observation_type": "inspect_equipment", "target_code": "FEED-SYSTEM" }
 ```
+```json
+{ "request_id": "o-T-1_T-11", "observation_type": "inspect_equipment", "target_code": "T-1_T-11" }
+```
+```json
+{ "request_id": "o-ELOU", "observation_type": "inspect_equipment", "target_code": "ELOU" }
+```
+```json
+{ "request_id": "o-K-2", "observation_type": "inspect_equipment", "target_code": "K-2" }
+```
+
+После — `GET /sessions/{session_id}/state`.
 
 | Вход | Ожидаемо |
 |---|---|
-| четыре наблюдения `inspect_equipment` на `FEED-SYSTEM/T-1_T-11/ELOU/K-2` | `201` на каждое; `current_stage_code` в 3.1-финале меняется на `feed_preparation` **до** 240 с симуляции |
+| четыре наблюдения выше | `201` на каждое; `current_stage_code` в финальном `GET /state` меняется на `feed_preparation` **до** 240 с симуляции |
 | `observation_type: "peek"` | `422`, `UNKNOWN_OBSERVATION_TYPE` |
 | `target_code: "N-1"` при `observation_type: "verify_result"` | `422`, `OBSERVATION_TARGET_NOT_ALLOWED` |
 | повтор с тем же `request_id` | прежний ответ, дубля нет |
@@ -255,70 +338,54 @@ curl -s $API/sessions/$SID/state
 
 ## 4. Валидация команд
 
-**Вход везде:** `$SID` из 2.1.
+**Parameters везде:** `session_id` → `<SID>` из 2.1.
 
-### 4.1 `POST /sessions/{id}/actions` — некорректные команды
+### 4.1 `POST /sessions/{session_id}/actions` — некорректные команды
 
-```bash
-curl -s -X POST $API/sessions/$SID/actions -H 'content-type: application/json' \
-  -d '{"request_id":"bad1","action_type":"open_secret_bypass","target_code":"N-1"}'
-```
+Отправьте по очереди (каждый раз новый `request_id`):
 
-| Вход | Ожидаемо |
+| Request body | Ожидаемо |
 |---|---|
-| `action_type: "open_secret_bypass"`, `target_code: "N-1"` | `202`, `status: "rejected"`, `rejection_reason: "unknown_action_type"` |
-| `action_type: "set_control_valve"`, `target_code: "K-2"` | `202`, `rejected`, `target_not_allowed` |
-| `action_type: "set_control_valve"`, `target_code: "FRC-404"`, `value: {"opening_pct": 140}` | `202`, `rejected`, `value_out_of_range` |
-| `action_type: "set_control_valve"`, `target_code: "FRC-404"` без `value` | `202`, `rejected`, `missing_value` |
-| любая команда сразу после `pause` (2.5) | `409`, `SESSION_NOT_RUNNING` (не забудьте снова `resume`) |
+| `{"request_id":"bad1","action_type":"open_secret_bypass","target_code":"N-1"}` | `202`, `status: "rejected"`, `rejection_reason: "unknown_action_type"` |
+| `{"request_id":"bad2","action_type":"set_control_valve","target_code":"K-2"}` | `202`, `rejected`, `target_not_allowed` |
+| `{"request_id":"bad3","action_type":"set_control_valve","target_code":"FRC-404","value":{"opening_pct":140}}` | `202`, `rejected`, `value_out_of_range` |
+| `{"request_id":"bad4","action_type":"set_control_valve","target_code":"FRC-404"}` (без `value`) | `202`, `rejected`, `missing_value` |
+| любая команда сразу после `pause` (2.5, шаг 1) | `409`, `SESSION_NOT_RUNNING` — не забудьте потом снова `resume` |
 
-Отклонённая команда **записывается в журнал** — она войдёт в отчёт (раздел 12), —
-но на установку не влияет: расходы не должны измениться. Забирать из ответов
-здесь нечего, все `id` одноразовые для негативных проверок.
+Отклонённая команда **записывается в журнал** — она войдёт в отчёт (раздел
+12), — но на установку не влияет. Забирать из ответов здесь нечего.
 
 ### 4.2 Отмена команды
 
-**Вход:** `$SID` из 2.1.
-
-```bash
-export AID=$(curl -s -X POST $API/sessions/$SID/actions -H 'content-type: application/json' \
-  -d '{"request_id":"cancel-me","action_type":"set_control_valve","target_code":"FRC-404","value":{"opening_pct":50}}' \
-  | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
-echo $AID
+`POST /sessions/{session_id}/actions`, тело:
+```json
+{ "request_id": "cancel-me", "action_type": "set_control_valve", "target_code": "FRC-404", "value": {"opening_pct": 50} }
 ```
 
-**Забираем:** `$AID` = `.id` → путь `POST /actions/{id}/cancel`.
+**Забираем:** `.id` из `Response body` → `<AID>`.
 
-```bash
-curl -s -X POST $API/sessions/$SID/actions/$AID/cancel -d '{}' -H 'content-type: application/json'
-```
+`POST /sessions/{session_id}/actions/{action_id}/cancel` — `Parameters`:
+`session_id` = `<SID>`, `action_id` = `<AID>`. `Request body`: `{}`.
 
 | Вход | Ожидаемо |
 |---|---|
-| отмена принятой команды (`$AID`) | `status: "cancelled"`, клапан **не** уходит на 50 % |
-| повторная отмена того же `$AID` | прежний ответ |
+| отмена принятой команды (`<AID>`) | `status: "cancelled"`, клапан **не** уходит на 50 % |
+| повторная отмена того же `<AID>` | прежний ответ |
 | отмена уже применённой командой (подождать шаг симуляции перед отменой) | `409`, `ACTION_ALREADY_RESOLVED` |
 
 ---
 
 ## 5. Пуск установки и причинно-следственная цепочка
 
-**Вход везде:** `$SID` из 2.1. Подавайте команды **по одной** и смотрите
-состояние между ними — это основная проверка того, что модель причинна, а не
-рисует числа. Новых переменных раздел не производит.
+**Parameters везде:** `session_id` → `<SID>` из 2.1. Подавайте команды **по
+одной** через `POST /sessions/{session_id}/actions` и смотрите состояние между
+ними — это основная проверка того, что модель причинна, а не рисует числа.
+Новых переменных раздел не производит.
+
+Показания приборов через `/docs` не видны (REST их не отдаёт), поэтому между
+командами смотрите последний снимок напрямую в БД:
 
 ```bash
-act()  { curl -s -X POST $API/sessions/$SID/actions -H 'content-type: application/json' -d "$1"; echo; }
-obs()  { curl -s -X POST $API/sessions/$SID/observations -H 'content-type: application/json' -d "$1"; echo; }
-state(){ curl -s $API/sessions/$SID/state; echo; }
-```
-
-Показания приборов удобно смотреть из последнего снимка (напрямую из БД, минуя
-API — снимки сами по себе через REST не отдаются, только через WebSocket,
-раздел 11):
-
-```bash
-values() {
 uv run python -c "
 import asyncio,json
 from sqlalchemy import select
@@ -334,32 +401,33 @@ async def m():
         print(json.dumps(sn.derived_values_json,ensure_ascii=False,indent=2))
     await db.dispose()
 asyncio.run(m())"
-}
 ```
 
-### 5.1 Сырьевой насос — `POST /sessions/{id}/actions`
+### 5.1 Сырьевой насос
 
-```bash
-act '{"request_id":"a1","action_type":"start_feed_pump","target_code":"N-1"}'
+**Request body:**
+```json
+{ "request_id": "a1", "action_type": "start_feed_pump", "target_code": "N-1" }
 ```
 
 | Момент | Ожидаемо |
 |---|---|
-| сразу после команды | `status: "accepted"`, а не «applied» — применит ближайший шаг симуляции |
-| +5 с (`values`) | `feed_pump_state: RUNNING`, давление на выкиде растёт к 6.0 бар, расходы ветвей **малы** — единицы т/ч |
+| сразу после команды (`Response body`) | `status: "accepted"`, а не «applied» — применит ближайший шаг симуляции |
+| +5 с (снимок из БД) | `feed_pump_state: RUNNING`, давление на выкиде растёт к 6.0 бар, расходы ветвей **малы** — единицы т/ч |
 | +60 с | каждая ветвь примерно 50–90 т/ч: расход нарастает постепенно, а не скачком |
 | +180 с | около 95–100 т/ч на ветвь, `total_feed_flow_tph` ≈ 300 |
 
-### 5.2 Температура после Т-1…Т-11 — только наблюдение (`values`)
+### 5.2 Температура после Т-1…Т-11 — только наблюдение (снимок из БД)
 
 **Ожидаемо:** `branch_N_t11_outlet_temp_c` от 25 °C растёт примерно до **130 °C**
 и там остаётся. Предел регламента — 140 °C, при штатном расходе он не
 превышается. Прогрев занимает около 15 минут симуляции.
 
-### 5.3 Промывочная вода на ЭЛОУ — `POST /sessions/{id}/actions`
+### 5.3 Промывочная вода на ЭЛОУ
 
-```bash
-act '{"request_id":"a2","action_type":"set_wash_water","target_code":"ELOU","value":{"ratio":0.075}}'
+**Request body:**
+```json
+{ "request_id": "a2", "action_type": "set_wash_water", "target_code": "ELOU", "value": {"ratio": 0.075} }
 ```
 
 | Вход | Ожидаемо |
@@ -372,10 +440,11 @@ act '{"request_id":"a2","action_type":"set_wash_water","target_code":"ELOU","val
 быть не должно**. Защита взводится только после вывода ступени в работу, то
 есть от 3700 мм.
 
-### 5.4 Насосы Н-20 и колонна К-1 — `POST /sessions/{id}/actions`
+### 5.4 Насосы Н-20 и колонна К-1
 
-```bash
-act '{"request_id":"a3","action_type":"start_transfer_pump","target_code":"N-20"}'
+**Request body:**
+```json
+{ "request_id": "a3", "action_type": "start_transfer_pump", "target_code": "N-20" }
 ```
 
 **Ожидаемо:** до этой команды `k1_feed_flow_ratio` равен 0 и `k1_bottom_temp_c`
@@ -383,10 +452,11 @@ act '{"request_id":"a3","action_type":"start_transfer_pump","target_code":"N-20"
 доходит. После команды К-1 наполняется: давление около 1.6 бар, низ около
 268 °C, уровень около 50 %.
 
-### 5.5 Печи — `POST /sessions/{id}/actions`
+### 5.5 Печи
 
-```bash
-act '{"request_id":"a4","action_type":"set_furnace_heat_load","target_code":"FURNACES","value":{"heat_load_pct":100}}'
+**Request body:**
+```json
+{ "request_id": "a4", "action_type": "set_furnace_heat_load", "target_code": "FURNACES", "value": {"heat_load_pct": 100} }
 ```
 
 | Момент | Ожидаемо |
@@ -401,7 +471,8 @@ act '{"request_id":"a4","action_type":"set_furnace_heat_load","target_code":"FUR
 
 ## 6. Выход на режим и запуск возмущения
 
-Дождитесь (`state`, шаг 5), пока `current_stage_code` дойдёт до `stable_mode`, а
+Дождитесь (снимок из БД, как в разделе 5, или `GET /sessions/{session_id}/state`
+на вкладке **sessions**), пока `current_stage_code` дойдёт до `stable_mode`, а
 затем сменится на `disturbance_monitoring`. Новых вызовов нет, только наблюдение.
 
 **Ожидаемо:** к этому моменту `min_branch_flow_ratio ≥ 0.95`,
@@ -417,13 +488,27 @@ act '{"request_id":"a4","action_type":"set_furnace_heat_load","target_code":"FUR
 
 ## 7. Развитие возмущения и тревоги
 
-**Вход:** `$SID` из 2.1. Ничего не делайте 5–8 минут симуляции.
+**Parameters везде:** `session_id` → `<SID>` из 2.1. Ничего не делайте 5–8
+минут симуляции.
 
-### 7.1 `GET /sessions/{id}/alarms`
+### 7.1 `GET /sessions/{session_id}/alarms` (тег **sessions**)
 
-```bash
-curl -s $API/sessions/$SID/alarms | python3 -m json.tool
-export AL=$(curl -s $API/sessions/$SID/alarms | python3 -c 'import json,sys;print(json.load(sys.stdin)[0]["id"])')
+**Response body** (пример):
+```json
+[
+  {
+    "id": "a7c9...-alarm",
+    "alarm_code": "flow_deviation_branch",
+    "level": "L1",
+    "equipment_code": "FRC-405",
+    "message": "Расход ветви 2 ниже нормы",
+    "state": "active",
+    "started_sim_time_ms": 1523000,
+    "acknowledged_sim_time_ms": null,
+    "cleared_sim_time_ms": null,
+    "is_nuisance": false
+  }
+]
 ```
 
 | Условие | Ожидаемая тревога |
@@ -443,14 +528,14 @@ export AL=$(curl -s $API/sessions/$SID/alarms | python3 -c 'import json,sys;prin
 `nuisance_auxiliary_N` уровня **L0** на `AUX-SYSTEM` — методический шум. На
 уровне 1 редко, на уровне 3 часто. Гаснут сами через 120 секунд.
 
-**Забираем:** `$AL` = `[0].id` из массива тревог → путь `POST /alarms/{id}/acknowledge`.
+**Забираем:** `[0].id` → `<AL>`, используется на шаге 7.2 (путь).
 
-### 7.2 `POST /sessions/{id}/alarms/{id}/acknowledge`
+### 7.2 `POST /sessions/{session_id}/alarms/{alarm_id}/acknowledge`
 
-**Вход:** `$SID` из 2.1, `$AL` из 7.1.
-
-```bash
-curl -s -X POST $API/sessions/$SID/alarms/$AL/acknowledge -H 'content-type: application/json' -d '{"request_id":"ack1"}'
+**Parameters:** `session_id` = `<SID>`, `alarm_id` = `<AL>` из 7.1. **Request
+body:**
+```json
+{ "request_id": "ack1" }
 ```
 
 **Ожидаемо:** `state: "active_acknowledged"`. Повтор с тем же `request_id`
@@ -460,8 +545,9 @@ curl -s -X POST $API/sessions/$SID/alarms/$AL/acknowledge -H 'content-type: appl
 
 ## 8. Диагностика — главная проверка бизнес-логики
 
-**Вход везде:** `$SID` из 2.1. **Сначала определите причину сами по приборам
-(`values`, шаг 5), не подглядывая.** Причин ровно две, и они различимы:
+**Parameters везде:** `session_id` → `<SID>` из 2.1. **Сначала определите
+причину сами по приборам (снимок из БД, раздел 5), не подглядывая.** Причин
+ровно две, и они различимы:
 
 | Признак | Вывод |
 |---|---|
@@ -472,7 +558,7 @@ curl -s -X POST $API/sessions/$SID/alarms/$AL/acknowledge -H 'content-type: appl
 `lowest_flow_branch_code`: 1 → `FRC-404`, 2 → `FRC-405`, 3 → `FRC-406`.
 
 Подсмотреть разгадку можно в роли инструктора — **после** собственного вывода
-(это прямой запрос к БД, не через API):
+(это прямой запрос к БД, не через API — у скрытой причины намеренно нет ручки):
 
 ```bash
 uv run python -c "
@@ -492,63 +578,80 @@ asyncio.run(m())"
 
 ### 8.1 Ветка А — правильный путь
 
-**Вход:** `$SID` из 2.1.
+#### 8.1.1 `POST /sessions/{session_id}/observations` ×4 — сбор улик
 
-#### 8.1.1 `POST /sessions/{id}/observations` ×4 — сбор улик
-
-```bash
-obs '{"request_id":"d1","observation_type":"declare_deviation","target_code":"FEED-SYSTEM"}'
-obs '{"request_id":"d2","observation_type":"compare_flows","target_code":"FEED-SYSTEM"}'
-obs '{"request_id":"d3","observation_type":"inspect_pressure","target_code":"FEED-SYSTEM"}'
-obs '{"request_id":"d4","observation_type":"inspect_equipment","target_code":"N-1"}'
+Отправьте по очереди:
+```json
+{ "request_id": "d1", "observation_type": "declare_deviation", "target_code": "FEED-SYSTEM" }
+```
+```json
+{ "request_id": "d2", "observation_type": "compare_flows", "target_code": "FEED-SYSTEM" }
+```
+```json
+{ "request_id": "d3", "observation_type": "inspect_pressure", "target_code": "FEED-SYSTEM" }
+```
+```json
+{ "request_id": "d4", "observation_type": "inspect_equipment", "target_code": "N-1" }
 ```
 
 **Ожидаемо:** `201` на каждое; момент первого `declare_deviation` фиксируется
 как время обнаружения — используется в отчёте (12.1, `timings.detection_time_ms`).
 
-#### 8.1.2 `POST /sessions/{id}/diagnoses`
+#### 8.1.2 `POST /sessions/{session_id}/diagnoses`
 
-```bash
-curl -s -X POST $API/sessions/$SID/diagnoses -H 'content-type: application/json' \
-  -d '{"request_id":"dg1","affected_area_code":"FEED-SYSTEM","deviation_code":"branch_flow_loss","suspected_cause_code":"pump_capacity_loss"}'
+**Request body** — значение `suspected_cause_code` из вашего вывода:
+```json
+{
+  "request_id": "dg1",
+  "affected_area_code": "FEED-SYSTEM",
+  "deviation_code": "branch_flow_loss",
+  "suspected_cause_code": "pump_capacity_loss"
+}
+```
+
+**Response body:**
+```json
+{
+  "id": "d41f...-diagnosis",
+  "request_id": "dg1",
+  "session_id": "<SID>",
+  "sequence_no": 47,
+  "sim_time_ms": 1612000,
+  "affected_area_code": "FEED-SYSTEM",
+  "deviation_code": "branch_flow_loss",
+  "suspected_cause_code": "pump_capacity_loss"
+}
 ```
 
 **Ожидаемо:** `201`, и в ответе **нет** поля `is_correct` — правильность
 диагноза оператору не сообщается напрямую (только в отчёте, 12.1). Значение
-`suspected_cause_code` из тела определяет, какое корректирующее действие будет
-эффективным в 8.1.3.
+`suspected_cause_code`, которое вы указали, определяет, какое корректирующее
+действие будет эффективным в 8.1.3.
 
-#### 8.1.3 `POST /sessions/{id}/actions` — корректирующее действие
+#### 8.1.3 `POST /sessions/{session_id}/actions` — корректирующее действие
 
-**Вход:** `suspected_cause_code`, который вы указали в 8.1.2, определяет, какую
-команду отправлять:
+**Request body** зависит от `suspected_cause_code` из 8.1.2:
 
-- диагноз `pump_capacity_loss` → `{"action_type":"switch_to_standby_pump","target_code":"N-1A"}`
-- диагноз `valve_stiction` → `{"action_type":"restore_flow_control","target_code":"FRC-40X"}`,
+- диагноз `pump_capacity_loss` → `{"request_id":"fix1","action_type":"switch_to_standby_pump","target_code":"N-1A"}`
+- диагноз `valve_stiction` → `{"request_id":"fix1","action_type":"restore_flow_control","target_code":"FRC-40X"}`,
   где `X` = 3 + номер проблемной ветви (из `lowest_flow_branch_code`)
 
-```bash
-act '{"request_id":"fix1","action_type":"switch_to_standby_pump","target_code":"N-1A"}'
-```
-
-| Проверка (`values`/`state`) | Ожидаемо |
+| Проверка (снимок из БД / повтор 7.1) | Ожидаемо |
 |---|---|
 | через 10 с после действия | расход **почти не изменился** — восстановление занимает 180 с |
 | через 200–300 с | `min_branch_flow_ratio` вернулся к значению ≥ 0.95 |
 | тревоги (7.1 повторно) | L1, L2, L3 гаснут **сами** по своим порогам снятия: 0.95, 0.08 и 138 °C |
-| класс действия в ответе на `GET /sessions/{id}/actions`-подобный источник — фактически виден в отчёте 12.1 `actions` | сразу после применения пуст; через 240 с окна становится `correct` |
+| класс действия (виден в отчёте, 12.1 `actions`) | сразу после применения пуст; через 240 с окна становится `correct` |
 | правильный тип действия, но по чужому адресу | причина не устраняется, класс `ineffective` |
 | корректирующее действие **до** диагноза (8.1.2 пропущен) | класс `out_of_sequence` |
 
-#### 8.1.4 `POST /sessions/{id}/observations` — downstream-проверки
+#### 8.1.4 `POST /sessions/{session_id}/observations` — downstream-проверки
 
-**Вход:** `$SID` из 2.1. Список адресов — из 3.1.
-
-```bash
-for T in FEED-SYSTEM T-1_T-11 ELOU V-15 K-1 FURNACES K-2 PRODUCTS; do
-  obs "{\"request_id\":\"v-$T\",\"observation_type\":\"verify_result\",\"target_code\":\"$T\"}"
-done
+Отправьте по очереди семь тел, `target_code` по списку из 3.1:
+```json
+{ "request_id": "v-FEED-SYSTEM", "observation_type": "verify_result", "target_code": "FEED-SYSTEM" }
 ```
+...и так же для `T-1_T-11`, `ELOU`, `V-15`, `K-1`, `FURNACES`, `K-2`, `PRODUCTS`.
 
 **Ожидаемо:** `201` на каждое; все семь входят в `downstream_checks` отчёта
 (12.1) как закрытые — от этого зависит, будет ли `outcome: "stabilized"`.
@@ -556,16 +659,17 @@ done
 ### 8.2 Ветка Б — опасная компенсация
 
 Запускать на **отдельной сессии** — повторите 2.1–2.4 с новым `request_id`,
-получите новый `$SID`. Вместо восстановления расхода добавьте тепла:
+получите новый `<SID>`. Вместо восстановления расхода добавьте тепла:
 
-```bash
-act '{"request_id":"bad","action_type":"set_furnace_heat_load","target_code":"FURNACES","value":{"heat_load_pct":125}}'
+**Request body** (`POST /sessions/{session_id}/actions`):
+```json
+{ "request_id": "bad", "action_type": "set_furnace_heat_load", "target_code": "FURNACES", "value": {"heat_load_pct": 125} }
 ```
 
 | Проверка | Ожидаемо |
 |---|---|
 | класс действия (виден в отчёте 12.1 `actions`) | `dangerous` **сразу**, без ожидания окна наблюдения |
-| `furnace_heat_to_feed_ratio` (`values`) | превышает 1.25 → тревога L5 `unsafe_furnace_heat_to_feed` |
+| `furnace_heat_to_feed_ratio` (снимок из БД) | превышает 1.25 → тревога L5 `unsafe_furnace_heat_to_feed` |
 | `furnace_outlet_temp_c` | выше 360 °C, низ К-2 уходит выше 350 °C |
 | `k2_stability_index` | падает **сильнее**, чем при бездействии — компенсация ухудшает процесс |
 | отчёт (12.1) | вывод «Компенсирует симптом тепловой нагрузкой вместо восстановления расхода», снижение `safety` |
@@ -577,31 +681,44 @@ act '{"request_id":"bad","action_type":"set_furnace_heat_load","target_code":"FU
 
 ## 9. SAGAT
 
-**Вход:** `$SID` из 2.1.
+**Parameters везде:** `session_id` → `<SID>` из 2.1.
 
-### 9.1 `GET /sessions/{id}/sagat/current`
+### 9.1 `GET /sessions/{session_id}/sagat/current` (тег **sessions**)
 
-```bash
-curl -s $API/sessions/$SID/sagat/current | python3 -m json.tool
-export CP=$(curl -s $API/sessions/$SID/sagat/current | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
+**Response body** (пример):
+```json
+{
+  "id": "9e21...-checkpoint",
+  "checkpoint_code": "after_stable_mode",
+  "status": "open",
+  "triggered_sim_time_ms": 1440000,
+  "answers_deadline_sim_time_ms": 1560000,
+  "questions": [
+    { "code": "lowest_flow_branch", "kind": "what_changed", "prompt": "Какая ветвь сейчас даёт наименьший расход?", "options": ["1", "2", "3"] },
+    { "code": "t11_over_limit", "kind": "what_it_means", "prompt": "Превышена ли температура после Т-1…Т-11?", "options": ["yes", "no"] },
+    { "code": "k1_feed_trend", "kind": "what_happens_next", "prompt": "Как изменится подача в К-1, если не вмешаться?", "options": ["rising", "falling", "steady"] }
+  ]
+}
 ```
 
-**Ожидаемо:** после успешного завершения `stable_mode` появляется контрольная
-точка `after_stable_mode` с тремя вопросами трёх видов: `what_changed`,
-`what_it_means`, `what_happens_next`. В ответе **нет** эталонных ответов,
-метрик и порогов — только формулировки и варианты. До этого этапа возвращается
-`null`.
+**Ожидаемо:** появляется после успешного завершения `stable_mode`, три вопроса
+трёх видов. В ответе **нет** эталонных ответов, метрик и порогов — только
+формулировки и варианты. До этого этапа возвращается `null`.
 
-**Забираем:** `$CP` = `.id` → путь `POST /sagat/{id}/answers`.
+**Забираем:** `.id` → `<CP>`, используется на шаге 9.2 (путь).
 
-### 9.2 `POST /sessions/{id}/sagat/{checkpoint_id}/answers`
+### 9.2 `POST /sessions/{session_id}/sagat/{checkpoint_id}/answers`
 
-**Вход:** `$SID` из 2.1, `$CP` из 9.1. Значения ответов сверяйте со снимком
-показаний (`values`, раздел 5) на момент `triggered_sim_time_ms` из ответа 9.1.
+**Parameters:** `session_id` = `<SID>`, `checkpoint_id` = `<CP>` из 9.1.
+Значения ответов сверяйте со снимком показаний (раздел 5) на момент
+`triggered_sim_time_ms` из ответа 9.1.
 
-```bash
-curl -s -X POST $API/sessions/$SID/sagat/$CP/answers -H 'content-type: application/json' \
-  -d '{"request_id":"sg1","answers":{"lowest_flow_branch":"2","t11_over_limit":"no","k1_feed_trend":"steady"}}'
+**Request body:**
+```json
+{
+  "request_id": "sg1",
+  "answers": { "lowest_flow_branch": "2", "t11_over_limit": "no", "k1_feed_trend": "steady" }
+}
 ```
 
 | Ответ | Ожидаемая оценка |
@@ -613,19 +730,35 @@ curl -s -X POST $API/sessions/$SID/sagat/$CP/answers -H 'content-type: applicati
 
 Повторный `GET /sagat/current` (9.1) после ответа возвращает `null`. Вторая
 контрольная точка `after_correction` появляется после успешного завершения
-этапа `recovery` — повторите 9.1→9.2 ещё раз с новым `$CP`.
+этапа `recovery` — повторите 9.1→9.2 ещё раз с новым `<CP>`.
 
 ---
 
 ## 10. NASA-TLX
 
-**Вход:** `$SID` из 2.1.
+**Parameters:** `session_id` → `<SID>` из 2.1.
 
-### 10.1 `POST /sessions/{id}/nasa-tlx`
+### 10.1 `POST /sessions/{session_id}/nasa-tlx` (тег **sessions**)
 
-```bash
-curl -s -X POST $API/sessions/$SID/nasa-tlx -H 'content-type: application/json' \
-  -d '{"mental_demand":7,"physical_demand":2,"temporal_demand":6,"performance":3,"effort":5,"frustration":4}'
+**Request body:**
+```json
+{
+  "mental_demand": 7,
+  "physical_demand": 2,
+  "temporal_demand": 6,
+  "performance": 3,
+  "effort": 5,
+  "frustration": 4
+}
+```
+
+**Response body:**
+```json
+{
+  "session_id": "<SID>",
+  "raw_tlx_score": 5.17,
+  "values": { "mental_demand": 7, "physical_demand": 2, "temporal_demand": 6, "performance": 3, "effort": 5, "frustration": 4 }
+}
 ```
 
 **Ожидаемо:** `201`, `raw_tlx_score` равен **5.17**. Арифметика проверяема:
@@ -634,7 +767,7 @@ curl -s -X POST $API/sessions/$SID/nasa-tlx -H 'content-type: application/json' 
 
 | Вход | Ожидаемо |
 |---|---|
-| повторная отправка на тот же `$SID` | `409`, `NASA_TLX_ALREADY_SUBMITTED` |
+| повторная отправка на тот же `<SID>` | `409`, `NASA_TLX_ALREADY_SUBMITTED` |
 | `"effort": 42` | `422`, `VALIDATION_ERROR` |
 | влияние на баллы (см. 12.1) | `resultiveness` в отчёте **не меняется** — показатель хранится отдельно |
 
@@ -642,15 +775,14 @@ curl -s -X POST $API/sessions/$SID/nasa-tlx -H 'content-type: application/json' 
 
 ## 11. WebSocket
 
-**Вход:** `$SID` из 2.1.
-
-### 11.1 `GET /ws/v1/sessions/{id}` (WebSocket upgrade)
+Swagger `/docs` не умеет вызывать WebSocket-ручки — для этого шага нужен
+отдельный скрипт. **Вход:** `<SID>` из 2.1.
 
 ```bash
 uv run python -c "
 import asyncio, json, websockets
 async def m():
-    async with websockets.connect('ws://localhost:8000/ws/v1/sessions/$SID?last_sequence_no=0') as ws:
+    async with websockets.connect('ws://localhost:8000/ws/v1/sessions/<SID>?last_sequence_no=0') as ws:
         for _ in range(15):
             m=json.loads(await ws.recv())
             print(m['sequence_no'], m['type'], m['sim_time_ms'])
@@ -666,19 +798,30 @@ asyncio.run(m())"
 | утечка | в `payload` снимка **нет** `severity`, `internal_state` и других скрытых полей |
 | события | команда оператора (раздел 4/5) даёт `action_status_changed`, тревога (7.1) — `alarm_raised` |
 
-Новых переменных не даёт — `sequence_no` можно взять для ручного теста догона,
-подставив следующее число в `?last_sequence_no=`.
-
 ---
 
 ## 12. Отчёт и сравнение уровней
 
-**Вход:** `$SID` из 2.1.
+**Parameters:** `session_id` → `<SID>` из 2.1.
 
-### 12.1 `GET /sessions/{id}/report`
+### 12.1 `GET /sessions/{session_id}/report` (тег **reports**)
 
-```bash
-curl -s $API/sessions/$SID/report | python3 -m json.tool
+**Response body** (пример, сокращено — реальный документ длиннее):
+```json
+{
+  "report_version": 1,
+  "session": { "id": "<SID>", "operator_id": "op-1", "instructor_id": null, "status": "completed", "sim_time_ms": 2400000 },
+  "outcome": "stabilized",
+  "timings": { "total_sim_time_ms": 2400000, "detection_time_ms": 42000, "reaction_time_ms": 55000, "recovery_time_ms": 182000 },
+  "scores": { "safety": 92.0, "action_correctness": 88.5, "process_stability": 90.0, "reaction_speed": 76.0, "resultiveness": 87.0, "situation_awareness": 0.83, "raw_nasa_tlx": 5.17 },
+  "score_events": [ { "dimension": "safety", "delta": -3.0, "rule_code": "unacknowledged_alarm", "reason": "Тревога L1 не подтверждена за отведённое время" } ],
+  "actions": { "total": 6, "by_classification": { "correct": 1, "rejected": 4 }, "rejected": [], "unverified": [] },
+  "alarms": { "total": 3, "timeline": [], "unacknowledged": [] },
+  "downstream_checks": { "completed": ["verify_t11", "verify_elou"], "missing": ["verify_products"] },
+  "stages": [ { "stage_code": "precheck", "entered_sim_time_ms": 0, "exited_sim_time_ms": 118000, "outcome": "success" } ],
+  "worst_parameters": [ { "metric": "min_branch_flow_ratio", "out_of_range_ms": 240000 } ],
+  "conclusions": [ "Быстро обнаруживает отклонение.", "Правильно определяет первопричину и устраняет её." ]
+}
 ```
 
 | Раздел | Ожидаемо |
@@ -694,22 +837,30 @@ curl -s $API/sessions/$SID/report | python3 -m json.tool
 | `conclusions` | словесные выводы, соответствующие вашим действиям |
 | утечка | во всём документе **нет** `random_seed`, `hidden`, `severity`, `onset_delay_ms` |
 
-Повторный запрос отчёта должен дать **идентичный** документ. Новых переменных
-не даёт, кроме `operator_id`, который уже известен из 2.1 (`op-1`).
+Повторный запрос отчёта должен дать **идентичный** документ.
 
-### 12.2 `GET /operators/{operator_id}/level-comparison`
+### 12.2 `GET /operators/{operator_id}/level-comparison` (тег **reports**)
 
-**Вход:** `operator_id`, заданный в теле 2.1 (`op-1`) — не из ответа, а из
-вашего собственного выбора при создании сессий.
+**Parameters:** `operator_id` — не из ответа, а из вашего собственного выбора
+при создании сессий (2.1): `op-1`.
 
-```bash
-curl -s $API/operators/op-1/level-comparison | python3 -m json.tool
+**Response body** (пример, после прохождения уровней 1 и 3):
+```json
+{
+  "operator_id": "op-1",
+  "levels": [
+    { "level_no": 1, "session_id": "<SID уровня 1>", "resultiveness": 87.0, "safety": 92.0, "action_correctness": 88.5, "process_stability": 90.0, "reaction_speed": 76.0, "situation_awareness": 0.83, "raw_nasa_tlx": 5.17 },
+    { "level_no": 3, "session_id": "<SID уровня 3>", "resultiveness": 61.0, "safety": 70.0, "action_correctness": 60.0, "process_stability": 65.0, "reaction_speed": 40.0, "situation_awareness": 0.5, "raw_nasa_tlx": 7.0 }
+  ],
+  "efficiency_retention": 70.11,
+  "absolute_drop": 26.0
+}
 ```
 
-**Ожидаемо:** пусто, пока не пройдены уровни 1 и 3 этим же `operator_id`. После
-двух завершённых сессий одного оператора с `level_no: 1` и `level_no: 3`
-появятся `efficiency_retention` (отношение результативности третьего уровня к
-первому в процентах) и `absolute_drop`.
+**Ожидаемо:** пусто (`levels: []`, оба показателя `null`), пока не пройдены
+уровни 1 и 3 этим же `operator_id`. После двух завершённых сессий появятся
+`efficiency_retention` (отношение результативности третьего уровня к первому в
+процентах) и `absolute_drop`.
 
 ---
 
@@ -717,11 +868,12 @@ curl -s $API/operators/op-1/level-comparison | python3 -m json.tool
 
 Повторите 2.1–2.4 (и любые последующие действия) **дважды**, с **одинаковым**
 `random_seed` в теле обеих `POST /sessions`, и подавайте одни и те же команды в
-те же моменты симуляционного времени. Получите два разных `$SID` — сохраните
-оба, например `$SID_A` и `$SID_B`.
+те же моменты симуляционного времени. Получите два разных `<SID>` — сохраните
+оба, например `<SID_A>` и `<SID_B>`.
 
 **Ожидаемо:** отчёты (12.1) по обеим сессиям совпадают, кроме идентификаторов, а
-`state_hash` снимков идентичны:
+`state_hash` снимков идентичны — сверить можно только напрямую в БД, ручки для
+этого нет:
 
 ```bash
 uv run python -c "
