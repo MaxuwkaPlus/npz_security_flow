@@ -28,6 +28,7 @@ class ActionReceipt:
     sim_time_ms: int
     action_type: str
     target_code: str
+    value: dict[str, float]
     status: ActionStatus
     rejection_reason: str | None
 
@@ -146,6 +147,8 @@ def _receipt(action: OperatorAction) -> ActionReceipt:
         sim_time_ms=action.sim_time_ms,
         action_type=action.action_type,
         target_code=action.target_code,
+        # Значение возвращается оператору обратно: так видно, каким сервер его принял.
+        value={name: float(value) for name, value in action.requested_value_json.items()},
         status=ActionStatus(action.status),
         rejection_reason=action.rejection_reason,
     )

@@ -22,6 +22,7 @@ class ActionResponse(BaseModel):
     sim_time_ms: int
     action_type: str
     target_code: str
+    value: dict[str, float]
     status: str
     rejection_reason: str | None
 
@@ -35,6 +36,7 @@ class ActionResponse(BaseModel):
             sim_time_ms=receipt.sim_time_ms,
             action_type=receipt.action_type,
             target_code=receipt.target_code,
+            value=receipt.value,
             status=receipt.status.value,
             rejection_reason=receipt.rejection_reason,
         )
