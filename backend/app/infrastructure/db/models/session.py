@@ -239,3 +239,57 @@ class OperatorDiagnosis(Base):
     # Внутреннее поле отчёта: во время прохождения оператору не возвращается.
     is_correct: Mapped[bool]
     received_at: Mapped[Timestamp]
+
+
+class SagatCheckpoint(Base):
+    """Контрольная точка ситуационной осведомлённости."""
+
+    __tablename__ = "sagat_checkpoints"
+    __table_args__ = (UniqueConstraint("session_id", "checkpoint_code"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    checkpoint_code: Mapped[Code]
+    triggered_sim_time_ms: Mapped[int]
+    status: Mapped[Code]
+    answers_deadline_sim_time_ms: Mapped[int]
+    # Состояние установки в момент вопроса: из него выводится эталонный ответ.
+    metrics_json: Mapped[JsonDict]
+    earlier_metrics_json: Mapped[JsonDict]
+    created_at: Mapped[Timestamp]
+
+    answers: Mapped[list["SagatAnswer"]] = relationship(
+        back_populates="checkpoint", cascade="all, delete-orphan"
+    )
+
+
+class SagatAnswer(Base):
+    __tablename__ = "sagat_answers"
+    __table_args__ = (UniqueConstraint("checkpoint_id", "question_code"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    checkpoint_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("sagat_checkpoints.id", ondelete="CASCADE"), index=True
+    )
+    question_code: Mapped[Code]
+    answer_json: Mapped[JsonDict]
+    score: Mapped[float]
+    submitted_at: Mapped[Timestamp]
+
+    checkpoint: Mapped[SagatCheckpoint] = relationship(back_populates="answers")
+
+
+class NasaTlxResponse(Base):
+    """Анкета субъективной нагрузки. Квалификационную оценку не снижает."""
+
+    __tablename__ = "nasa_tlx_responses"
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), unique=True
+    )
+    values_json: Mapped[JsonDict]
+    raw_tlx_score: Mapped[float]
+    submitted_at: Mapped[Timestamp]

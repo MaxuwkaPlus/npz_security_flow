@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
+from app.application.assessment import open_checkpoint, snapshot_metrics_before
 from app.application.classification import classify_applied, effect_rule, evaluate_pending_effects
 from app.application.observations import completed_checks
 from app.application.runtime_config import (
@@ -18,6 +19,7 @@ from app.application.runtime_config import (
     disturbance_of,
     nuisance_policy,
     safety_policy,
+    sagat_policy,
     simulation_clock,
     twin_config,
 )
@@ -130,6 +132,8 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
         stage_timer_of(training_session),
         await completed_checks(uow, session_id, checks_policy(scenario)),
     )
+    if decision.outcome is StageOutcome.SUCCESS:
+        await _open_sagat_checkpoint(uow, training_session, scenario, current_stage, metrics)
     if armed_at_ms is None and _confirms_stable_mode(training_session, decision, current_stage):
         # Устойчивый режим подтверждён — с этого момента отсчитывается скрытое возмущение.
         armed_at_ms = training_session.sim_time_ms
@@ -209,6 +213,25 @@ def alarm_timers_of(training_session: TrainingSession) -> dict[str, int]:
 
     alarms = training_session.runtime_state_json.get(ALARMS_KEY, {})
     return {code: int(since) for code, since in alarms.get(PENDING_KEY, {}).items()}
+
+
+async def _open_sagat_checkpoint(
+    uow: UnitOfWork,
+    training_session: TrainingSession,
+    scenario: ScenarioVersion,
+    stage_code: str,
+    metrics: dict[str, float],
+) -> None:
+    """Контрольная точка ставится сразу после успешного завершения этапа-триггера."""
+
+    policy = sagat_policy(scenario)
+    spec = policy.triggered_by(stage_code)
+    if spec is None:
+        return
+    earlier = await snapshot_metrics_before(
+        uow, training_session.id, training_session.sim_time_ms - policy.trend_window_ms
+    )
+    await open_checkpoint(uow, training_session, spec, metrics, earlier)
 
 
 def disturbance_armed_at(training_session: TrainingSession) -> int | None:

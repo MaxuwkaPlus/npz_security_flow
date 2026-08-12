@@ -8,6 +8,7 @@ from app.domain.commands import ControlPolicy
 from app.domain.nuisance import NuisancePolicy
 from app.domain.observations import ChecksPolicy
 from app.domain.safety import SafetyPolicy
+from app.domain.sagat import SagatPolicy
 from app.domain.twin import Disturbance, TwinConfig
 from app.infrastructure.db.models import ScenarioLevel, ScenarioVersion, TrainingSession
 
@@ -42,6 +43,10 @@ def nuisance_policy(scenario: ScenarioVersion, level: ScenarioLevel) -> Nuisance
 
 def checks_policy(scenario: ScenarioVersion) -> ChecksPolicy:
     return ChecksPolicy.from_json(scenario.config_json.get("stage_checks", {}))
+
+
+def sagat_policy(scenario: ScenarioVersion) -> SagatPolicy:
+    return SagatPolicy.from_json(scenario.config_json.get("sagat", {}))
 
 
 def safety_policy(scenario: ScenarioVersion) -> SafetyPolicy:

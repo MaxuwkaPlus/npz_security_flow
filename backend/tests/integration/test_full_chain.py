@@ -25,38 +25,17 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.unit_of_work import UnitOfWork
 from tests.conftest import SeededConfiguration
+from tests.support import speed_up_process_model
 
 DISTURBANCE_ONSET_DELAY_MS = 0
 DISTURBANCE_RAMP_MS = 60_000
-FAST_MODEL = {
-    "warmup_time_constant_ms": 30_000,
-    "flow_time_constant_ms": 20_000,
-    "downstream": {
-        "elou_load_time_constant_ms": 20_000,
-        "elou_stage2_time_constant_ms": 10_000,
-        "elou_level_time_constant_ms": 10_000,
-        "e15_load_time_constant_ms": 10_000,
-        "e15_level_time_constant_ms": 10_000,
-        "k1_load_time_constant_ms": 10_000,
-        "k1_time_constant_ms": 20_000,
-        "furnace_time_constant_ms": 20_000,
-        "k2_load_time_constant_ms": 30_000,
-        "k2_time_constant_ms": 30_000,
-        "product_time_constant_ms": 30_000,
-    },
-}
 
 
 async def prepare(database: Database, configuration: SeededConfiguration) -> str:
     async with database.session_factory() as session, session.begin():
         scenario = await session.get(ScenarioVersion, configuration.scenario_version_id)
         assert scenario is not None
-        config = dict(scenario.config_json)
-        model = dict(config["process_model"])
-        model.update({key: value for key, value in FAST_MODEL.items() if key != "downstream"})
-        model["downstream"] = model["downstream"] | FAST_MODEL["downstream"]
-        config["process_model"] = model
-        scenario.config_json = config
+        scenario.config_json = speed_up_process_model(scenario.config_json)
 
     async with UnitOfWork(database.session_factory) as uow:
         state = await create_session(

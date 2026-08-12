@@ -356,6 +356,73 @@ CONTROL_ACTIONS: dict[str, Any] = {
     },
 }
 
+# SAGAT: три уровня осведомлённости. Формулировки демонстрационные, но эталонный
+# ответ не задан текстом — он вычисляется из состояния установки в момент вопроса.
+SAGAT: dict[str, Any] = {
+    "provisional": True,
+    "trend_window_ms": 30_000,
+    "checkpoints": [
+        {
+            "code": "after_stable_mode",
+            "after_stage_code": "stable_mode",
+            "answer_deadline_ms": 120_000,
+            "questions": [
+                {
+                    "code": "lowest_flow_branch",
+                    "kind": "what_changed",
+                    "prompt": "Какая сырьевая ветвь имеет наименьший расход?",
+                    "options": ["1", "2", "3"],
+                    "rule": "value",
+                    "metric": "lowest_flow_branch_code",
+                },
+                {
+                    "code": "t11_over_limit",
+                    "kind": "what_it_means",
+                    "prompt": "Температура после Т-1…Т-11 выше ограничения 140 °C?",
+                    "options": ["yes", "no"],
+                    "rule": "threshold",
+                    "metric": "t11_max_temp_c",
+                    "threshold": T11_TEMPERATURE_LIMIT_C,
+                },
+                {
+                    "code": "k1_feed_trend",
+                    "kind": "what_happens_next",
+                    "prompt": "Как изменяется подача на К-1?",
+                    "options": ["rising", "falling", "steady"],
+                    "rule": "trend",
+                    "metric": "k1_feed_flow_ratio",
+                    "trend_tolerance": 0.01,
+                },
+            ],
+        },
+        {
+            "code": "after_correction",
+            "after_stage_code": "recovery",
+            "answer_deadline_ms": 120_000,
+            "questions": [
+                {
+                    "code": "flow_restored",
+                    "kind": "what_changed",
+                    "prompt": "Расход всех ветвей вернулся в норму?",
+                    "options": ["yes", "no"],
+                    "rule": "threshold",
+                    "metric": "min_branch_flow_ratio",
+                    "threshold": 0.95,
+                },
+                {
+                    "code": "k2_stability_trend",
+                    "kind": "what_happens_next",
+                    "prompt": "Как изменяется устойчивость К-2?",
+                    "options": ["rising", "falling", "steady"],
+                    "rule": "trend",
+                    "metric": "k2_stability_index",
+                    "trend_tolerance": 0.01,
+                },
+            ],
+        },
+    ],
+}
+
 # Чем закрывается обязательная проверка этапа. Оператор фиксирует проверку явно,
 # поэтому соответствие «наблюдение → проверка» описано здесь, а не выводится из UI.
 STAGE_CHECKS: dict[str, Any] = {
@@ -521,6 +588,7 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "control_actions": CONTROL_ACTIONS,
     "nuisance_alarms": NUISANCE_ALARMS,
     "stage_checks": STAGE_CHECKS,
+    "sagat": SAGAT,
     # Опасная компенсация: наращивание тепла при уже упавшем расходе сырья.
     "safety": {"provisional": True, "feed_ratio_threshold": 0.95},
 }

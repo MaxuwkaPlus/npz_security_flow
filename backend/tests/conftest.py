@@ -21,7 +21,13 @@ from tests.support import alembic_config
 async def settings(tmp_path: Path) -> Settings:
     """Файловая SQLite во временном каталоге со схемой, накатанной миграциями."""
 
-    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path}/test.db", log_level="WARNING")
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{tmp_path}/test.db",
+        log_level="WARNING",
+        # Фоновая симуляция в тестах молчит: шаги делает сам тест, иначе два писателя
+        # одной сессии наталкиваются на optimistic locking.
+        simulation_speed_factor=0.001,
+    )
     # env.py вызывает asyncio.run, поэтому миграции запускаются в отдельном потоке.
     await asyncio.to_thread(command.upgrade, alembic_config(settings.database_url), "head")
     return settings

@@ -3,6 +3,13 @@ from fastapi import APIRouter, status
 from app.api.deps import SessionRunnerDep, UnitOfWorkDep
 from app.api.v1.schemas.actions import ActionResponse, SubmitActionRequest
 from app.api.v1.schemas.alarms import AcknowledgeAlarmRequest, AlarmResponse
+from app.api.v1.schemas.assessment import (
+    NasaTlxRequest,
+    NasaTlxResponseSchema,
+    SagatCheckpointResponse,
+    SagatResultResponse,
+    SubmitSagatAnswersRequest,
+)
 from app.api.v1.schemas.observations import (
     DiagnosisResponse,
     ObservationResponse,
@@ -12,9 +19,13 @@ from app.api.v1.schemas.observations import (
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
 from app.application.actions import submit_action
 from app.application.alarms import acknowledge_alarm, list_alarms
+from app.application.assessment import current_checkpoint, submit_answers, submit_nasa_tlx
 from app.application.observations import record_observation, submit_diagnosis
+from app.application.runtime_config import sagat_policy
 from app.application.sessions import create_session, get_session_state, transition_session
+from app.core.errors import NotFoundError
 from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
+from app.infrastructure.db.models import ScenarioVersion
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -102,6 +113,41 @@ async def post_diagnosis(
     return DiagnosisResponse.from_receipt(receipt)
 
 
+@router.get("/{session_id}/sagat/current", response_model=SagatCheckpointResponse | None)
+async def get_current_sagat(session_id: str, uow: UnitOfWorkDep) -> SagatCheckpointResponse | None:
+    """Открытая контрольная точка ситуационной осведомлённости или ничего."""
+
+    scenario = await _scenario_of(uow, session_id)
+    view = await current_checkpoint(uow, session_id, sagat_policy(scenario))
+    return None if view is None else SagatCheckpointResponse.from_view(view)
+
+
+@router.post("/{session_id}/sagat/{checkpoint_id}/answers", response_model=SagatResultResponse)
+async def post_sagat_answers(
+    session_id: str,
+    checkpoint_id: str,
+    payload: SubmitSagatAnswersRequest,
+    runner: SessionRunnerDep,
+) -> SagatResultResponse:
+    async with runner.exclusive(session_id) as uow:
+        scenario = await _scenario_of(uow, session_id)
+        result = await submit_answers(uow, session_id, checkpoint_id, payload.answers, sagat_policy(scenario))
+    return SagatResultResponse.from_result(result)
+
+
+@router.post(
+    "/{session_id}/nasa-tlx", response_model=NasaTlxResponseSchema, status_code=status.HTTP_201_CREATED
+)
+async def post_nasa_tlx(
+    session_id: str, payload: NasaTlxRequest, runner: SessionRunnerDep
+) -> NasaTlxResponseSchema:
+    """Анкета субъективной нагрузки. На квалификационную оценку не влияет."""
+
+    async with runner.exclusive(session_id) as uow:
+        response = await submit_nasa_tlx(uow, session_id, payload.model_dump())
+    return NasaTlxResponseSchema.from_model(response)
+
+
 @router.get("/{session_id}/alarms", response_model=list[AlarmResponse])
 async def get_alarms(session_id: str, uow: UnitOfWorkDep) -> list[AlarmResponse]:
     """Активные тревоги сессии; используется клиентом при переподключении."""
@@ -175,3 +221,13 @@ async def _transition(
     elif is_terminal(state.status):
         await runner.stop(session_id)
     return SessionResponse.from_state(state)
+
+
+async def _scenario_of(uow: UnitOfWorkDep, session_id: str) -> ScenarioVersion:
+    training_session = await uow.sessions.get(session_id)
+    if training_session is None:
+        raise NotFoundError("SESSION_NOT_FOUND", "Сессия не найдена")
+    scenario = await uow.session.get(ScenarioVersion, training_session.scenario_version_id)
+    if scenario is None:
+        raise NotFoundError("SCENARIO_NOT_FOUND", "Версия сценария сессии не найдена")
+    return scenario
