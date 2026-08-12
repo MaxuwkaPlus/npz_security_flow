@@ -154,7 +154,9 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
     scenario_finished = decision.changed and decision.next_stage_code is None
     if scenario_finished or clock.is_finished(training_session.sim_time_ms):
         _complete(uow, training_session, scenario_finished)
-        await build_report(uow, session_id)
+        # Вердикт даёт отчёт; в сессии он дублируется для списков и сравнения уровней.
+        report = await build_report(uow, session_id)
+        training_session.final_outcome = str(report["outcome"])
 
     return _result(training_session, clock, applied=True, snapshot_written=snapshot_written)
 

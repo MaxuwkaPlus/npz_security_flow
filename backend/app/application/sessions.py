@@ -19,6 +19,7 @@ from app.domain.disturbance import DisturbanceOption, select_disturbance
 from app.domain.sessions import (
     InvalidSessionTransition,
     SessionCommand,
+    SessionOutcome,
     SessionStatus,
     apply_command,
     is_terminal,
@@ -280,6 +281,9 @@ def _apply_timestamps(training_session: TrainingSession, command: SessionCommand
         training_session.paused_at = None
     elif is_terminal(SessionStatus(training_session.status)):
         training_session.completed_at = now
+        if command is SessionCommand.ABORT:
+            # Прерванное прохождение не оценивается: итог известен сразу.
+            training_session.final_outcome = SessionOutcome.ABORTED
 
 
 async def _level_no(uow: UnitOfWork, training_session: TrainingSession) -> int:
