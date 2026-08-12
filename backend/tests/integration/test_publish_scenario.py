@@ -46,7 +46,11 @@ async def test_published_scenario_contains_stages_levels_and_rules(database: Dat
         "pump_capacity_loss",
         "valve_stiction",
     }
-    assert [action.order_no for action in scenario.expected_action_rules] == list(range(1, 10))
+    steps = sorted(scenario.expected_action_rules, key=lambda action: action.order_no)
+    assert [action.order_no for action in steps] == list(range(1, 15))
+    # Шаги эталона названы кодами обязательных проверок, иначе оценка их не свяжет.
+    check_codes = set(scenario.config_json["stage_checks"])
+    assert {action.action_type for action in steps} <= check_codes
 
 
 async def test_publish_is_idempotent(database: Database) -> None:

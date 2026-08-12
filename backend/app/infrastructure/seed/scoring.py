@@ -27,7 +27,9 @@ PENALTIES: dict[str, Any] = {
     "out_of_sequence_action": 5.0,
     "unnecessary_action": 3.0,
     "repeated_action": 2.0,
-    "critical_area_per_10s": 2.0,
+    # 0.5 за 10 секунд: сотня баллов уходит примерно за полчаса непрерывной критики.
+    # При 2.0 шкала обнулялась за восемь минут и переставала различать прохождения.
+    "critical_area_per_10s": 0.5,
 }
 
 STABILITY_RULE: dict[str, Any] = {

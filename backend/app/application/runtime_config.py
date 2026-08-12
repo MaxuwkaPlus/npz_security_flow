@@ -9,8 +9,15 @@ from app.domain.nuisance import NuisancePolicy
 from app.domain.observations import ChecksPolicy
 from app.domain.safety import SafetyPolicy
 from app.domain.sagat import SagatPolicy
+from app.domain.scoring import ScoringPolicy
 from app.domain.twin import Disturbance, TwinConfig
-from app.infrastructure.db.models import ScenarioLevel, ScenarioVersion, TrainingSession
+from app.infrastructure.db.models import (
+    ScenarioLevel,
+    ScenarioVersion,
+    ScoringPolicyVersion,
+    TrainingSession,
+)
+from app.infrastructure.db.unit_of_work import UnitOfWork
 
 DEFAULT_TICK_INTERVAL_MS = 1_000
 DEFAULT_SNAPSHOT_INTERVAL_MS = 5_000
@@ -68,3 +75,14 @@ def disturbance_of(training_session: TrainingSession, armed_at_ms: int | None) -
 def disturbance_after_stage(training_session: TrainingSession) -> str:
     hidden = training_session.hidden_runtime_config_json["disturbance"]
     return str(hidden["after_stage_code"])
+
+
+async def scoring_config(uow: UnitOfWork, scoring_policy_version_id: str) -> ScoringPolicy:
+    """Веса и штрафы берутся из версии политики, зафиксированной за сессией."""
+
+    policy = await uow.session.get(ScoringPolicyVersion, scoring_policy_version_id)
+    if policy is None:
+        raise ValueError("Сессия ссылается на несуществующую версию политики оценки")
+    return ScoringPolicy.from_json(
+        policy.weights_json, policy.penalties_json, policy.stability_rule_json, policy.reaction_rule_json
+    )

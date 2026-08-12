@@ -532,22 +532,23 @@ PROCESS_MODEL: dict[str, Any] = {
 }
 
 # Эталонная последовательность действий оператора (§10.1 ТЗ, §40 сценария).
+# Коды шагов совпадают с кодами обязательных проверок: закрытая проверка и есть
+# выполненный шаг, поэтому правильность действий считается без второго словаря.
 EXPECTED_ACTIONS: tuple[ExpectedActionSpec, ...] = (
     ExpectedActionSpec(1, "declare_deviation", "FEED-SYSTEM", 1.0),
     ExpectedActionSpec(2, "compare_flows", "FEED-SYSTEM", 1.0),
     ExpectedActionSpec(3, "inspect_pressure", "FEED-SYSTEM", 1.0),
-    ExpectedActionSpec(4, "inspect_equipment", "N-1", 1.0),
-    ExpectedActionSpec(5, "inspect_equipment", "disturbance_target_controller", 1.0),
+    ExpectedActionSpec(4, "inspect_pump", "N-1", 1.0),
     ExpectedActionSpec(
-        6,
+        5,
         "submit_diagnosis",
         "FEED-SYSTEM",
         2.0,
         criticality="critical",
-        preconditions=("compare_flows", "inspect_equipment"),
+        preconditions=("compare_flows", "inspect_pump"),
     ),
     ExpectedActionSpec(
-        7,
+        6,
         "corrective_action",
         "disturbance_target_branch",
         3.0,
@@ -559,21 +560,21 @@ EXPECTED_ACTIONS: tuple[ExpectedActionSpec, ...] = (
         verification={"required_observations": ["verify_flow"], "window_ms": 240_000},
     ),
     ExpectedActionSpec(
-        8,
-        "verify_result",
+        7,
+        "verify_flow",
         "FEED-SYSTEM",
         2.0,
         criticality="critical",
         preconditions=("corrective_action",),
     ),
-    ExpectedActionSpec(
-        9,
-        "verify_downstream",
-        "PRODUCTS",
-        2.0,
-        preconditions=("verify_result",),
-        verification={"required_targets": ["T-1_T-11", "ELOU", "V-15", "K-1", "FURNACES", "K-2", "PRODUCTS"]},
-    ),
+    # Downstream-проверки: исправил — проследи развитие по всей цепочке (§41 сценария).
+    ExpectedActionSpec(8, "verify_t11", "T-1_T-11", 1.0, preconditions=("verify_flow",)),
+    ExpectedActionSpec(9, "verify_elou", "ELOU", 1.0, preconditions=("verify_flow",)),
+    ExpectedActionSpec(10, "verify_e15", "V-15", 1.0, preconditions=("verify_flow",)),
+    ExpectedActionSpec(11, "verify_k1", "K-1", 1.0, preconditions=("verify_flow",)),
+    ExpectedActionSpec(12, "verify_furnaces", "FURNACES", 1.0, preconditions=("verify_flow",)),
+    ExpectedActionSpec(13, "verify_k2", "K-2", 1.0, preconditions=("verify_flow",)),
+    ExpectedActionSpec(14, "verify_products", "PRODUCTS", 1.0, preconditions=("verify_flow",)),
 )
 
 SCENARIO_CONFIG: dict[str, Any] = {

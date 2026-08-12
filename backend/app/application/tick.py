@@ -23,6 +23,7 @@ from app.application.runtime_config import (
     simulation_clock,
     twin_config,
 )
+from app.application.scoring import calculate_scores
 from app.application.stages import advance_stage, load_stages
 from app.core.errors import NotFoundError
 from app.domain.clock import SimulationClock
@@ -153,6 +154,7 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
     scenario_finished = decision.changed and decision.next_stage_code is None
     if scenario_finished or clock.is_finished(training_session.sim_time_ms):
         _complete(uow, training_session, scenario_finished)
+        await calculate_scores(uow, session_id)
 
     return _result(training_session, clock, applied=True, snapshot_written=snapshot_written)
 

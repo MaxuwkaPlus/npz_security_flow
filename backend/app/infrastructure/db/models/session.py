@@ -293,3 +293,57 @@ class NasaTlxResponse(Base):
     values_json: Mapped[JsonDict]
     raw_tlx_score: Mapped[float]
     submitted_at: Mapped[Timestamp]
+
+
+class ScoreEventRecord(Base):
+    """Одно объяснимое изменение балла: правило, факт и величина."""
+
+    __tablename__ = "score_events"
+    __table_args__ = (Index("ix_score_events_session_dimension", "session_id", "dimension"),)
+
+    id: Mapped[UuidStr] = mapped_column(primary_key=True, default=new_uuid)
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    sim_time_ms: Mapped[int]
+    dimension: Mapped[Code]
+    delta: Mapped[float]
+    rule_code: Mapped[Code]
+    reason: Mapped[Name]
+    source_event_id: Mapped[str | None] = mapped_column(
+        ForeignKey("session_events.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[Timestamp]
+
+
+class SessionScore(Base):
+    """Итоговые баллы прохождения. Пересчитываются из журнала и версии правил."""
+
+    __tablename__ = "session_scores"
+
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    scoring_policy_version_id: Mapped[UuidStr] = mapped_column(ForeignKey("scoring_policy_versions.id"))
+    safety_score: Mapped[float]
+    action_correctness_score: Mapped[float]
+    process_stability_score: Mapped[float]
+    reaction_score: Mapped[float]
+    resultiveness_score: Mapped[float]
+    situation_awareness_score: Mapped[float]
+    recovery_time_ms: Mapped[int | None] = mapped_column(default=None)
+    raw_nasa_tlx: Mapped[float | None] = mapped_column(default=None)
+    calculated_at: Mapped[Timestamp]
+
+
+class SessionReport(Base):
+    """Итоговый отчёт. PDF является производным артефактом от report_json."""
+
+    __tablename__ = "session_reports"
+
+    session_id: Mapped[UuidStr] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), primary_key=True
+    )
+    report_version: Mapped[int]
+    report_json: Mapped[JsonDict]
+    generated_at: Mapped[Timestamp]
