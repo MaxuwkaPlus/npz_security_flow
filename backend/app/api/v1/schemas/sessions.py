@@ -4,13 +4,15 @@
 представления в этих схемах, поэтому не могут попасть в ответ.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.application.sessions import SessionState
 
 
 class CreateSessionRequest(BaseModel):
-    request_id: str = Field(min_length=1, max_length=36)
+    request_id: str = Field(
+        min_length=1, max_length=36, description="Уникальный идентификатор запроса, свой на каждый вызов"
+    )
     operator_id: str = Field(min_length=1, max_length=64)
     scenario_version_id: str
     level_no: int = Field(ge=1, le=3)
@@ -20,8 +22,21 @@ class CreateSessionRequest(BaseModel):
 
 
 class SessionCommandRequest(BaseModel):
-    request_id: str = Field(min_length=1, max_length=36)
-    expected_version: int | None = Field(default=None, ge=1)
+    # Пример задан явно: иначе Swagger подставляет в `expected_version` минимум схемы,
+    # и запрос из готового примера падает с SESSION_VERSION_MISMATCH.
+    model_config = ConfigDict(json_schema_extra={"example": {"request_id": "start-1"}})
+
+    request_id: str = Field(
+        min_length=1, max_length=36, description="Уникальный идентификатор запроса, свой на каждый вызов"
+    )
+    expected_version: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Необязательно. Текущий version_no сессии из GET /sessions/{id}/state — "
+            "защита от одновременной работы двух клиентов. Пропустите поле, если клиент один."
+        ),
+    )
 
 
 class SessionResponse(BaseModel):

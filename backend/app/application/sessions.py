@@ -134,6 +134,10 @@ async def create_session(
         {"from": SessionStatus.CREATED.value, "to": training_session.status},
         correlation_id=request_id,
     )
+    # `version_no` — колонка оптимистичной блокировки: она увеличится при записи
+    # перехода в ready. Явный flush нужен, чтобы в ответе оказалось её реальное
+    # значение, а не то, что было сразу после INSERT.
+    await uow.flush()
     state = _state(training_session, level.level_no)
     uow.sessions.add_command_request(request_id, training_session.id, "create_session", state.to_json())
     return state
