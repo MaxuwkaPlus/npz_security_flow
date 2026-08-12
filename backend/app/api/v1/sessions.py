@@ -17,6 +17,7 @@ from app.api.v1.schemas.observations import (
     SubmitDiagnosisRequest,
 )
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
+from app.api.v1.tags import ACTIONS, ALARMS, ASSESSMENT, OBSERVATIONS, SESSION
 from app.application.actions import cancel_action, submit_action
 from app.application.alarms import acknowledge_alarm, list_alarms
 from app.application.assessment import current_checkpoint, submit_answers, submit_nasa_tlx
@@ -27,10 +28,11 @@ from app.core.errors import NotFoundError
 from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
 from app.infrastructure.db.models import ScenarioVersion
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+# Тег указан у каждой ручки: теги роутера складывались бы с ними и группа дублировалась.
+router = APIRouter(prefix="/sessions")
 
 
-@router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED, tags=[SESSION])
 async def post_session(payload: CreateSessionRequest, uow: UnitOfWorkDep) -> SessionResponse:
     state = await create_session(
         uow,
@@ -44,19 +46,24 @@ async def post_session(payload: CreateSessionRequest, uow: UnitOfWorkDep) -> Ses
     return SessionResponse.from_state(state)
 
 
-@router.get("/{session_id}", response_model=SessionResponse)
+@router.get("/{session_id}", response_model=SessionResponse, tags=[SESSION])
 async def get_session(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
     return SessionResponse.from_state(await get_session_state(uow, session_id))
 
 
-@router.get("/{session_id}/state", response_model=SessionResponse)
+@router.get("/{session_id}/state", response_model=SessionResponse, tags=[SESSION])
 async def get_state(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
     """Текущее состояние сессии; используется клиентом после разрыва WebSocket."""
 
     return SessionResponse.from_state(await get_session_state(uow, session_id))
 
 
-@router.post("/{session_id}/actions", response_model=ActionResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/{session_id}/actions",
+    response_model=ActionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=[ACTIONS],
+)
 async def post_action(
     session_id: str, payload: SubmitActionRequest, runner: SessionRunnerDep
 ) -> ActionResponse:
@@ -78,6 +85,7 @@ async def post_action(
     "/{session_id}/observations",
     response_model=ObservationResponse,
     status_code=status.HTTP_201_CREATED,
+    tags=[OBSERVATIONS],
 )
 async def post_observation(
     session_id: str, payload: RecordObservationRequest, runner: SessionRunnerDep
@@ -96,7 +104,12 @@ async def post_observation(
     return ObservationResponse.from_receipt(receipt)
 
 
-@router.post("/{session_id}/diagnoses", response_model=DiagnosisResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{session_id}/diagnoses",
+    response_model=DiagnosisResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=[OBSERVATIONS],
+)
 async def post_diagnosis(
     session_id: str, payload: SubmitDiagnosisRequest, runner: SessionRunnerDep
 ) -> DiagnosisResponse:
@@ -113,7 +126,7 @@ async def post_diagnosis(
     return DiagnosisResponse.from_receipt(receipt)
 
 
-@router.get("/{session_id}/sagat/current", response_model=SagatCheckpointResponse | None)
+@router.get("/{session_id}/sagat/current", response_model=SagatCheckpointResponse | None, tags=[ASSESSMENT])
 async def get_current_sagat(session_id: str, uow: UnitOfWorkDep) -> SagatCheckpointResponse | None:
     """Открытая контрольная точка ситуационной осведомлённости или ничего."""
 
@@ -122,7 +135,9 @@ async def get_current_sagat(session_id: str, uow: UnitOfWorkDep) -> SagatCheckpo
     return None if view is None else SagatCheckpointResponse.from_view(view)
 
 
-@router.post("/{session_id}/sagat/{checkpoint_id}/answers", response_model=SagatResultResponse)
+@router.post(
+    "/{session_id}/sagat/{checkpoint_id}/answers", response_model=SagatResultResponse, tags=[ASSESSMENT]
+)
 async def post_sagat_answers(
     session_id: str,
     checkpoint_id: str,
@@ -136,7 +151,10 @@ async def post_sagat_answers(
 
 
 @router.post(
-    "/{session_id}/nasa-tlx", response_model=NasaTlxResponseSchema, status_code=status.HTTP_201_CREATED
+    "/{session_id}/nasa-tlx",
+    response_model=NasaTlxResponseSchema,
+    status_code=status.HTTP_201_CREATED,
+    tags=[ASSESSMENT],
 )
 async def post_nasa_tlx(
     session_id: str, payload: NasaTlxRequest, runner: SessionRunnerDep
@@ -148,7 +166,7 @@ async def post_nasa_tlx(
     return NasaTlxResponseSchema.from_model(response)
 
 
-@router.post("/{session_id}/actions/{action_id}/cancel", response_model=ActionResponse)
+@router.post("/{session_id}/actions/{action_id}/cancel", response_model=ActionResponse, tags=[ACTIONS])
 async def post_action_cancel(session_id: str, action_id: str, runner: SessionRunnerDep) -> ActionResponse:
     """Отзывает команду, которую ещё не применил очередной шаг симуляции."""
 
@@ -157,14 +175,14 @@ async def post_action_cancel(session_id: str, action_id: str, runner: SessionRun
     return ActionResponse.from_receipt(receipt)
 
 
-@router.get("/{session_id}/alarms", response_model=list[AlarmResponse])
+@router.get("/{session_id}/alarms", response_model=list[AlarmResponse], tags=[ALARMS])
 async def get_alarms(session_id: str, uow: UnitOfWorkDep) -> list[AlarmResponse]:
     """Активные тревоги сессии; используется клиентом при переподключении."""
 
     return [AlarmResponse.from_view(view) for view in await list_alarms(uow, session_id)]
 
 
-@router.post("/{session_id}/alarms/{alarm_id}/acknowledge", response_model=AlarmResponse)
+@router.post("/{session_id}/alarms/{alarm_id}/acknowledge", response_model=AlarmResponse, tags=[ALARMS])
 async def post_alarm_acknowledge(
     session_id: str,
     alarm_id: str,
@@ -178,28 +196,28 @@ async def post_alarm_acknowledge(
     return AlarmResponse.from_view(view)
 
 
-@router.post("/{session_id}/start", response_model=SessionResponse)
+@router.post("/{session_id}/start", response_model=SessionResponse, tags=[SESSION])
 async def post_start(
     session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
 ) -> SessionResponse:
     return await _transition(runner, session_id, SessionCommand.START, payload)
 
 
-@router.post("/{session_id}/pause", response_model=SessionResponse)
+@router.post("/{session_id}/pause", response_model=SessionResponse, tags=[SESSION])
 async def post_pause(
     session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
 ) -> SessionResponse:
     return await _transition(runner, session_id, SessionCommand.PAUSE, payload)
 
 
-@router.post("/{session_id}/resume", response_model=SessionResponse)
+@router.post("/{session_id}/resume", response_model=SessionResponse, tags=[SESSION])
 async def post_resume(
     session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
 ) -> SessionResponse:
     return await _transition(runner, session_id, SessionCommand.RESUME, payload)
 
 
-@router.post("/{session_id}/abort", response_model=SessionResponse)
+@router.post("/{session_id}/abort", response_model=SessionResponse, tags=[SESSION])
 async def post_abort(
     session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
 ) -> SessionResponse:

@@ -13,11 +13,12 @@ from app.api.v1.schemas.catalog import (
     TopologyEdgeResponse,
     TopologyResponse,
 )
+from app.api.v1.tags import CATALOG
 from app.core.errors import NotFoundError
 from app.infrastructure.db.models import Equipment, ScenarioVersion, TopologyEdge
 from app.infrastructure.repositories.catalog import CatalogRepository
 
-router = APIRouter(tags=["catalog"])
+router = APIRouter(tags=[CATALOG])
 
 
 @router.get("/scenarios", response_model=list[ScenarioSummaryResponse])

@@ -5,9 +5,10 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.api.deps import UnitOfWorkDep
+from app.api.v1.tags import REPORTS
 from app.application.reports import build_report, level_comparison
 
-router = APIRouter(tags=["reports"])
+router = APIRouter(tags=[REPORTS])
 
 
 @router.get("/sessions/{session_id}/report")

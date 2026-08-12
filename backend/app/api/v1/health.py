@@ -3,8 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.api.deps import DatabaseDep
+from app.api.v1.tags import SERVICE
 
-router = APIRouter(tags=["service"])
+router = APIRouter(tags=[SERVICE])
 
 
 class HealthResponse(BaseModel):

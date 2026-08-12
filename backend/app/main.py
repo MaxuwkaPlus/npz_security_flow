@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.api.v1.realtime import router as realtime_router
 from app.api.v1.router import api_router
+from app.api.v1.tags import TAGS_METADATA
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
@@ -28,7 +29,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await runner.stop_all()
         await database.dispose()
 
-    app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        lifespan=lifespan,
+        openapi_tags=TAGS_METADATA,
+    )
     app.state.settings = settings
     app.state.database = database
     app.state.realtime_hub = hub

@@ -57,6 +57,21 @@ def test_every_documented_path_is_versioned(app: FastAPI) -> None:
     assert all(path.startswith("/api/v1/") for path in spec["paths"])
 
 
+def test_every_operation_belongs_to_exactly_one_documented_group(app: FastAPI) -> None:
+    """Ручка без группы теряется на странице /docs, с двумя — показывается дважды."""
+
+    spec = app.openapi()
+    documented = {tag["name"] for tag in spec["tags"]}
+    tags_by_operation = {
+        f"{method.upper()} {path}": operation.get("tags", [])
+        for path, item in spec["paths"].items()
+        for method, operation in item.items()
+    }
+
+    assert all(len(tags) == 1 for tags in tags_by_operation.values()), tags_by_operation
+    assert {tag for tags in tags_by_operation.values() for tag in tags} <= documented
+
+
 def test_no_response_schema_exposes_hidden_state(app: FastAPI) -> None:
     """Скрытая причина, интенсивность возмущения и правильность диагноза вне контракта."""
 
