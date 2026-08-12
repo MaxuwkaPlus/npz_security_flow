@@ -14,8 +14,7 @@ from app.domain.commands import Command
 from app.domain.dynamics import approach, clamp
 
 SET_WASH_WATER = "set_wash_water"
-
-ELOU_SECTION_CODE = "ELOU"
+START_TRANSFER_PUMP = "start_transfer_pump"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +37,21 @@ class DownstreamConfig:
     # Уровень, при котором ступень считается выведенной в работу и защита взводится.
     elou_operating_level_mm: float = 3700.0
     wash_water_max_ratio: float = 0.20
+    e15_load_time_constant_ms: int = 30_000
+    e15_base_level_pct: float = 52.0
+    # Насколько проседает уровень Е-15 при недоборе подачи.
+    e15_level_sensitivity_pct: float = 80.0
+    e15_level_time_constant_ms: int = 30_000
+    k1_load_time_constant_ms: int = 30_000
+    k1_base_pressure_bar: float = 1.60
+    k1_pressure_sensitivity_bar: float = 1.80
+    k1_base_top_temp_c: float = 138.0
+    k1_top_temp_sensitivity_c: float = 49.0
+    k1_base_bottom_temp_c: float = 268.0
+    k1_bottom_temp_sensitivity_c: float = 65.0
+    k1_base_level_pct: float = 50.0
+    k1_level_sensitivity_pct: float = 65.0
+    k1_time_constant_ms: int = 60_000
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "DownstreamConfig":
@@ -63,8 +77,30 @@ class ElouState:
 
 
 @dataclass(frozen=True, slots=True)
+class VesselState:
+    """Е-15 и откачивающие насосы Н-20."""
+
+    load_ratio: float
+    level_pct: float
+    transfer_pump_running: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnState:
+    """Первая колонна К-1."""
+
+    feed_ratio: float
+    pressure_bar: float
+    top_temp_c: float
+    bottom_temp_c: float
+    level_pct: float
+
+
+@dataclass(frozen=True, slots=True)
 class DownstreamState:
     elou: ElouState
+    vessel: VesselState
+    k1: ColumnState
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -78,12 +114,26 @@ class DownstreamState:
                 "temperature_c": self.elou.temperature_c,
                 "stage1_in_operation": self.elou.stage1_in_operation,
                 "stage2_in_operation": self.elou.stage2_in_operation,
-            }
+            },
+            "vessel": {
+                "load_ratio": self.vessel.load_ratio,
+                "level_pct": self.vessel.level_pct,
+                "transfer_pump_running": self.vessel.transfer_pump_running,
+            },
+            "k1": {
+                "feed_ratio": self.k1.feed_ratio,
+                "pressure_bar": self.k1.pressure_bar,
+                "top_temp_c": self.k1.top_temp_c,
+                "bottom_temp_c": self.k1.bottom_temp_c,
+                "level_pct": self.k1.level_pct,
+            },
         }
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "DownstreamState":
         elou = data.get("elou", {})
+        vessel = data.get("vessel", {})
+        k1 = data.get("k1", {})
         return cls(
             elou=ElouState(
                 wash_water_ratio=float(elou.get("wash_water_ratio", 0.0)),
@@ -95,7 +145,19 @@ class DownstreamState:
                 temperature_c=float(elou.get("temperature_c", 0.0)),
                 stage1_in_operation=bool(elou.get("stage1_in_operation", False)),
                 stage2_in_operation=bool(elou.get("stage2_in_operation", False)),
-            )
+            ),
+            vessel=VesselState(
+                load_ratio=float(vessel.get("load_ratio", 0.0)),
+                level_pct=float(vessel.get("level_pct", 0.0)),
+                transfer_pump_running=bool(vessel.get("transfer_pump_running", False)),
+            ),
+            k1=ColumnState(
+                feed_ratio=float(k1.get("feed_ratio", 0.0)),
+                pressure_bar=float(k1.get("pressure_bar", 0.0)),
+                top_temp_c=float(k1.get("top_temp_c", 0.0)),
+                bottom_temp_c=float(k1.get("bottom_temp_c", 0.0)),
+                level_pct=float(k1.get("level_pct", 0.0)),
+            ),
         )
 
 
@@ -113,7 +175,9 @@ def initial_downstream_state() -> DownstreamState:
             temperature_c=0.0,
             stage1_in_operation=False,
             stage2_in_operation=False,
-        )
+        ),
+        vessel=VesselState(load_ratio=0.0, level_pct=0.0, transfer_pump_running=False),
+        k1=ColumnState(feed_ratio=0.0, pressure_bar=0.0, top_temp_c=0.0, bottom_temp_c=0.0, level_pct=0.0),
     )
 
 
@@ -155,6 +219,8 @@ def step_downstream(
         config.elou_stage2_level_sensitivity_mm,
         dt_ms,
     )
+    vessel = _step_vessel(state.vessel, config, stage2_load_ratio, commands, dt_ms)
+    k1 = _step_k1(state.k1, config, vessel, dt_ms)
     return DownstreamState(
         elou=replace(
             elou,
@@ -170,7 +236,9 @@ def step_downstream(
                 if is_online(load_ratio, config)
                 else 0.0
             ),
-        )
+        ),
+        vessel=vessel,
+        k1=k1,
     )
 
 
@@ -187,6 +255,77 @@ def hv_trip_count(state: DownstreamState, config: DownstreamConfig) -> int:
     )
     return sum(
         1 for in_operation, level in stages if in_operation and level < config.elou_low_level_interlock_mm
+    )
+
+
+def _step_vessel(
+    vessel: VesselState,
+    config: DownstreamConfig,
+    inlet_ratio: float,
+    commands: Sequence[Command],
+    dt_ms: int,
+) -> VesselState:
+    """Е-15 принимает поток после ЭЛОУ; дальше его качают насосы Н-20."""
+
+    running = vessel.transfer_pump_running or any(
+        command.action_type == START_TRANSFER_PUMP for command in commands
+    )
+    load_ratio = approach(vessel.load_ratio, inlet_ratio, dt_ms, config.e15_load_time_constant_ms)
+    if is_online(load_ratio, config):
+        target_level = config.e15_base_level_pct - config.e15_level_sensitivity_pct * max(
+            0.0, 1.0 - load_ratio
+        )
+    else:
+        target_level = 0.0
+    return VesselState(
+        load_ratio=load_ratio,
+        level_pct=clamp(
+            approach(vessel.level_pct, target_level, dt_ms, config.e15_level_time_constant_ms), 0.0, 100.0
+        ),
+        transfer_pump_running=running,
+    )
+
+
+def _step_k1(k1: ColumnState, config: DownstreamConfig, vessel: VesselState, dt_ms: int) -> ColumnState:
+    """К-1 получает сырьё, только пока работают откачивающие насосы Н-20."""
+
+    inlet_ratio = vessel.load_ratio if vessel.transfer_pump_running else 0.0
+    feed_ratio = approach(k1.feed_ratio, inlet_ratio, dt_ms, config.k1_load_time_constant_ms)
+    if not is_online(feed_ratio, config):
+        return ColumnState(
+            feed_ratio=feed_ratio, pressure_bar=0.0, top_temp_c=0.0, bottom_temp_c=0.0, level_pct=0.0
+        )
+
+    deficit = max(0.0, 1.0 - feed_ratio)
+    tau = config.k1_time_constant_ms
+    return ColumnState(
+        feed_ratio=feed_ratio,
+        pressure_bar=approach(
+            k1.pressure_bar,
+            config.k1_base_pressure_bar - config.k1_pressure_sensitivity_bar * deficit,
+            dt_ms,
+            tau,
+        ),
+        top_temp_c=approach(
+            k1.top_temp_c, config.k1_base_top_temp_c - config.k1_top_temp_sensitivity_c * deficit, dt_ms, tau
+        ),
+        # Меньше сырья при той же тепловой нагрузке — низ колонны греется сильнее.
+        bottom_temp_c=approach(
+            k1.bottom_temp_c,
+            config.k1_base_bottom_temp_c + config.k1_bottom_temp_sensitivity_c * deficit,
+            dt_ms,
+            tau,
+        ),
+        level_pct=clamp(
+            approach(
+                k1.level_pct,
+                config.k1_base_level_pct - config.k1_level_sensitivity_pct * deficit,
+                dt_ms,
+                tau,
+            ),
+            0.0,
+            100.0,
+        ),
     )
 
 

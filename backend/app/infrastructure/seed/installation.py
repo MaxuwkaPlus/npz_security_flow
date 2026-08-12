@@ -220,6 +220,7 @@ ATMOSPHERIC_EQUIPMENT = [
             # Температура низа К-1 до 280 °C (сценарий, §29).
             TagSpec("k1_bottom_temp_c", "degC", normal_max=270.0, critical_max=280.0),
             TagSpec("k1_level_pct", "%", normal_min=40.0, normal_max=60.0),
+            TagSpec("k1_online", "0/1", value_type="int", normal_min=1.0),
         ),
     ),
     EquipmentSpec(

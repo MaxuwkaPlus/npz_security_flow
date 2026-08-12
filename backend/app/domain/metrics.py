@@ -31,6 +31,7 @@ def visible_values(state: PlantState, config: TwinConfig) -> dict[str, Any]:
         PUMP_STATE_RUNNING if state.pump_running and state.active_pump_code != "N-1" else PUMP_STATE_STANDBY
     )
     values.update(_elou_values(state, config))
+    values.update(_atmospheric_values(state, config))
     return values
 
 
@@ -45,6 +46,22 @@ def _elou_values(state: PlantState, config: TwinConfig) -> dict[str, Any]:
         "elou_load_imbalance_ratio": round(elou.imbalance_ratio, 4),
         "elou_hv_trip_count": float(hv_trip_count(state.downstream, downstream)),
         "elou_online": 1.0 if is_online(elou.load_ratio, downstream) else 0.0,
+    }
+
+
+def _atmospheric_values(state: PlantState, config: TwinConfig) -> dict[str, Any]:
+    downstream = DownstreamConfig.from_json(config.downstream)
+    vessel = state.downstream.vessel
+    k1 = state.downstream.k1
+    return {
+        "e15_level_pct": round(vessel.level_pct, 2),
+        "n20_state": PUMP_STATE_RUNNING if vessel.transfer_pump_running else PUMP_STATE_STOPPED,
+        "k1_feed_flow_ratio": round(k1.feed_ratio, 4),
+        "k1_pressure_bar": round(k1.pressure_bar, 3),
+        "k1_top_temp_c": round(k1.top_temp_c, 2),
+        "k1_bottom_temp_c": round(k1.bottom_temp_c, 2),
+        "k1_level_pct": round(k1.level_pct, 2),
+        "k1_online": 1.0 if is_online(k1.feed_ratio, downstream) else 0.0,
     }
 
 

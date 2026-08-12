@@ -246,7 +246,10 @@ ALARM_RULES: tuple[AlarmRuleSpec, ...] = (
         "k1_feed_deviation",
         "L5",
         "K-1",
-        rule(condition("k1_feed_flow_ratio", "<", 0.91), condition("k1_feed_flow_ratio", ">", 0.0)),
+        rule(
+            condition("k1_online", ">=", 1.0),
+            condition("k1_feed_flow_ratio", "<", 0.91),
+        ),
         rule(condition("k1_feed_flow_ratio", ">=", 0.95)),
         "Отклонение подачи на К-1",
     ),
@@ -327,6 +330,7 @@ CONTROL_ACTIONS: dict[str, Any] = {
     "restore_flow_control": {"targets": BRANCH_CONTROLLER_CODES},
     # Вода на смешение: 5–10 % от расхода нефти по регламенту, ввод ограничен 20 %.
     "set_wash_water": {"targets": ["ELOU"], "value_bounds": {"ratio": [0.0, 0.20]}},
+    "start_transfer_pump": {"targets": ["N-20", "N-20A", "N-20B"]},
 }
 
 # Коэффициенты упрощённого двойника. Значения демонстрационные (§23 ТЗ).
@@ -360,6 +364,20 @@ PROCESS_MODEL: dict[str, Any] = {
         "elou_temperature_offset_c": -2.0,
         "elou_level_time_constant_ms": 30_000,
         "elou_operating_level_mm": 3700.0,
+        "e15_load_time_constant_ms": 30_000,
+        "e15_base_level_pct": 52.0,
+        "e15_level_sensitivity_pct": 80.0,
+        "e15_level_time_constant_ms": 30_000,
+        "k1_load_time_constant_ms": 30_000,
+        "k1_base_pressure_bar": 1.60,
+        "k1_pressure_sensitivity_bar": 1.80,
+        "k1_base_top_temp_c": 138.0,
+        "k1_top_temp_sensitivity_c": 49.0,
+        "k1_base_bottom_temp_c": 268.0,
+        "k1_bottom_temp_sensitivity_c": 65.0,
+        "k1_base_level_pct": 50.0,
+        "k1_level_sensitivity_pct": 65.0,
+        "k1_time_constant_ms": 60_000,
         "wash_water_max_ratio": 0.20,
     },
 }
