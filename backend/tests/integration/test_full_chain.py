@@ -7,6 +7,7 @@
 from sqlalchemy import select
 
 from app.application.actions import submit_action
+from app.application.observations import submit_diagnosis
 from app.application.sessions import create_session, transition_session
 from app.application.tick import run_tick
 from app.domain.downstream import SET_FURNACE_HEAT_LOAD, SET_WASH_WATER, START_TRANSFER_PUMP
@@ -258,3 +259,91 @@ async def test_confirmed_stable_mode_arms_the_disturbance(
     armed_at = stored.runtime_state_json["stage"]["disturbance_armed_at_ms"]
     assert armed_at is not None
     assert armed_at <= stored.sim_time_ms
+
+
+async def submit_diagnosis_and_fix(database: Database, session_id: str) -> tuple[str, str]:
+    """Оператор ставит диагноз и выполняет действие, соответствующее скрытой причине."""
+
+    async with database.session_factory() as session:
+        stored = await session.get(TrainingSession, session_id)
+        assert stored is not None
+        hidden = stored.hidden_runtime_config_json["disturbance"]
+    cause = hidden["cause_code"]
+    correct_action = hidden["recovery"]["correct_action_type"]
+    target = "N-1A" if correct_action == "switch_to_standby_pump" else f"FRC-40{3 + hidden['target_branch']}"
+
+    async with UnitOfWork(database.session_factory) as uow:
+        await submit_diagnosis(
+            uow,
+            session_id,
+            request_id="diag",
+            affected_area_code="FEED-SYSTEM",
+            deviation_code="branch_flow_loss",
+            suspected_cause_code=cause,
+        )
+    return correct_action, target
+
+
+async def test_correct_action_is_classified_after_the_effect_window(
+    database: Database, configuration: SeededConfiguration
+) -> None:
+    session_id = await start_plant(database, configuration)
+    await tick(database, session_id, times=600)
+
+    correct_action, target = await submit_diagnosis_and_fix(database, session_id)
+    await act(database, session_id, "fix", correct_action, target)
+    await tick(database, session_id, times=30)
+
+    async with database.session_factory() as session:
+        action = await session.scalar(select(OperatorAction).where(OperatorAction.request_id == "fix"))
+    assert action is not None
+    # Окно наблюдения ещё не истекло: класс пока не выставлен.
+    assert action.classification is None
+    assert action.requires_verification is True
+    assert action.evaluation_pending_until_ms is not None
+
+    await tick(database, session_id, times=400)
+    async with database.session_factory() as session:
+        action = await session.scalar(select(OperatorAction).where(OperatorAction.request_id == "fix"))
+    assert action is not None
+    assert action.classification == "correct"
+
+
+async def test_corrective_action_before_diagnosis_is_out_of_sequence(
+    database: Database, configuration: SeededConfiguration
+) -> None:
+    session_id = await start_plant(database, configuration)
+    await tick(database, session_id, times=600)
+
+    async with database.session_factory() as session:
+        stored = await session.get(TrainingSession, session_id)
+        assert stored is not None
+        hidden = stored.hidden_runtime_config_json["disturbance"]
+    correct_action = hidden["recovery"]["correct_action_type"]
+    target = "N-1A" if correct_action == "switch_to_standby_pump" else f"FRC-40{3 + hidden['target_branch']}"
+
+    await act(database, session_id, "early-fix", correct_action, target)
+    await tick(database, session_id, times=5)
+
+    async with database.session_factory() as session:
+        action = await session.scalar(select(OperatorAction).where(OperatorAction.request_id == "early-fix"))
+    assert action is not None
+    assert action.classification == "out_of_sequence"
+
+
+async def test_repeated_command_is_recorded_as_repeat(
+    database: Database, configuration: SeededConfiguration
+) -> None:
+    session_id = await start_plant(database, configuration)
+
+    await act(database, session_id, "valve-1", "set_control_valve", "FRC-404", opening_pct=80.0)
+    await tick(database, session_id, times=5)
+    await act(database, session_id, "valve-2", "set_control_valve", "FRC-404", opening_pct=80.0)
+    await tick(database, session_id, times=5)
+
+    async with database.session_factory() as session:
+        repeated = await session.scalar(select(OperatorAction).where(OperatorAction.request_id == "valve-2"))
+        first = await session.scalar(select(OperatorAction).where(OperatorAction.request_id == "valve-1"))
+    assert first is not None and repeated is not None
+    assert first.classification is None
+    assert repeated.classification == "repeated"

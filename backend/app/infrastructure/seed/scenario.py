@@ -487,7 +487,9 @@ EXPECTED_ACTIONS: tuple[ExpectedActionSpec, ...] = (
         criticality="critical",
         preconditions=("submit_diagnosis",),
         expected_effect={"metric": "min_branch_flow_ratio", "op": ">=", "value": 0.95},
-        verification={"required_observations": ["verify_flow"], "window_ms": 120_000},
+        # Окно подтверждения не короче восстановления (180 с), иначе правильное действие
+        # не успевало бы подтвердиться и всегда считалось бы неэффективным.
+        verification={"required_observations": ["verify_flow"], "window_ms": 240_000},
     ),
     ExpectedActionSpec(
         8,

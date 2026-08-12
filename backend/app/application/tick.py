@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.application.alarms import load_alarm_rules, refresh_alarms
+from app.application.classification import classify_applied, effect_rule, evaluate_pending_effects
 from app.application.observations import completed_checks
 from app.application.runtime_config import (
     checks_policy,
@@ -93,8 +94,22 @@ async def run_tick(uow: UnitOfWork, session_id: str) -> TickResult:
         ],
     )
     _mark_applied(uow, training_session, pending, before, plant, config, safety_policy(scenario))
-    # 7. Тревоги по правилам версии сценария.
+    # 9. Классификация команд: часть определяется сразу, часть — по окончании окна эффекта.
     metrics = rule_metrics(plant, config)
+    rule = await effect_rule(uow, scenario.id)
+    has_diagnosis = await uow.sessions.has_diagnosis(session_id)
+    await classify_applied(
+        uow,
+        training_session,
+        pending,
+        before,
+        plant,
+        disturbance_of(training_session, armed_at_ms).correct_action_type,
+        rule,
+        has_diagnosis,
+    )
+    await evaluate_pending_effects(uow, training_session, metrics, rule)
+    # 7. Тревоги по правилам версии сценария.
     level = await uow.session.get(ScenarioLevel, training_session.scenario_level_id)
     alarm_timers = await refresh_alarms(
         uow,
