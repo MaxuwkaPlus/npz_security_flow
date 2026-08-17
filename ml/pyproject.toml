@@ -1,0 +1,40 @@
+[project]
+name = "npz-security-flow-ml"
+version = "0.1.0"
+description = "ML-часть тренажёра ЭЛОУ-АВТ: поиск слабых мест оператора и рекомендации сценариев"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "httpx>=0.27",
+    "pandas>=2.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ml"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Комментарии и сообщения проекта на русском языке; проверка «похожих» символов здесь бесполезна.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
