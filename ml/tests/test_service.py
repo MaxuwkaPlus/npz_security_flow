@@ -5,6 +5,8 @@
 всегда уходит в очередь как черновик.
 """
 
+from dataclasses import replace
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -53,6 +55,19 @@ def test_health_reports_llm_state(client):
 
     assert body["status"] == "ok"
     assert body["llm_available"] is False
+
+
+def test_session_list_shows_weak_spot_and_newest_first(client, session_facts, monkeypatch):
+    """Разбор эксперт начинает со списка: сверху свежее прохождение, у каждого — слабое место."""
+
+    older = replace(session_facts, session_id="s0", verify_flow_done=True, downstream_checks_done=7)
+    monkeypatch.setattr(service.data, "load_backend_sessions", lambda: [older, session_facts])
+
+    items = client.get("/ml/v1/sessions").json()["items"]
+
+    assert [item["session_id"] for item in items] == ["s1", "s0"]
+    assert items[0]["weak_skill"] == "verification"
+    assert items[1]["weak_skill"] is None
 
 
 def test_advice_returns_recommendation_and_creates_draft(client, session_facts):

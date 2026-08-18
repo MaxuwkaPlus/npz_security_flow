@@ -1,7 +1,7 @@
 import { SESSION_STATUS_LABELS } from "../../constants/index.js";
 import { formatTime } from "../../utils/helpers.js";
 
-export function AppHeader({ session, wsStatus }) {
+export function AppHeader({ session, wsStatus, onExpert }) {
   return (
     <header className="topbar">
       <div className="brand">
@@ -18,6 +18,10 @@ export function AppHeader({ session, wsStatus }) {
           {SESSION_STATUS_LABELS[session.status] || session.status}
         </span>
         <b>{formatTime(session.sim_time_ms)}</b>
+        {/* Инструктор ведёт разбор параллельно с прохождением, не прерывая его. */}
+        <button className="expert-link" onClick={onExpert}>
+          Кабинет эксперта
+        </button>
       </div>
     </header>
   );

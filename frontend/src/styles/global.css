@@ -1011,6 +1011,400 @@ button:disabled {
     color: #e5f2f1
 }
 
+/* Кабинет эксперта */
+
+.expert-link {
+    padding: 8px 14px;
+    border: 1px solid #2c5d68;
+    border-radius: 7px;
+    background: #0d2932;
+    color: #6fd6c2;
+    font-size: 11px;
+    letter-spacing: .04em
+}
+
+.expert-link:hover {
+    border-color: #49d3c8;
+    color: #9ae8da
+}
+
+.hero .expert-link {
+    margin-top: 26px
+}
+
+.expert-page>header {
+    max-width: 760px
+}
+
+.expert-page .expert-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 22px;
+    font-size: 11px;
+    color: #88a5ae
+}
+
+.expert-page .expert-id input {
+    padding: 8px 12px;
+    border: 1px solid #27515e;
+    border-radius: 7px;
+    background: #0b202b;
+    color: #d9e8ee;
+    font: 500 12px 'DM Mono'
+}
+
+.expert-page .hint {
+    font-size: 11px;
+    color: #7d9aa3;
+    line-height: 1.6
+}
+
+.expert-page .banner {
+    max-width: 1000px;
+    margin: 16px auto 0;
+    padding: 12px 16px;
+    border: 1px solid #6d3a30;
+    border-radius: 8px;
+    background: #2a1512;
+    font-size: 12px
+}
+
+.expert-page .report-grid {
+    margin-top: 30px
+}
+
+.expert-page .summary {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #c3d8dc
+}
+
+.session-list {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 6px;
+    overflow-x: auto
+}
+
+.session-list button {
+    flex: 0 0 auto;
+    min-width: 210px;
+    padding: 11px 13px;
+    text-align: left;
+    border: 1px solid #1e414f;
+    border-radius: 8px;
+    background: #0e2833;
+    color: #cfe3e6
+}
+
+.session-list button:hover {
+    border-color: #2f6b76
+}
+
+.session-list button.selected {
+    border-color: #49d3c8;
+    background: #113440
+}
+
+.session-list b {
+    display: block;
+    font-size: 12px
+}
+
+.session-list span,
+.session-list small {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    color: #7f9da5
+}
+
+.skills {
+    margin: 18px 0 6px
+}
+
+.skill-row {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 48px;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #163540;
+    font-size: 11px;
+    color: #9eb8be
+}
+
+.skill-row>div {
+    height: 6px;
+    background: #173541;
+    border-radius: 3px;
+    overflow: hidden
+}
+
+.skill-row i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #2bbfa4, #49d3c8)
+}
+
+.skill-row.weak i {
+    background: linear-gradient(90deg, #b8503c, #e5937d)
+}
+
+.skill-row b {
+    font-family: 'DM Mono';
+    color: #d8eceb;
+    text-align: right
+}
+
+.skill-row.weak b {
+    color: #e5937d
+}
+
+.skill-row small {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    color: #6f8d96
+}
+
+.skill-row.muted b {
+    color: #5f7b83
+}
+
+/* Навык без оценки не должен читаться как «ноль баллов». */
+.skill-row.muted>div {
+    opacity: .35
+}
+
+.knobs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px
+}
+
+.knobs div {
+    padding: 10px 12px;
+    background: #102d37;
+    border: 1px solid transparent;
+    border-radius: 7px
+}
+
+.knobs div.changed {
+    border-color: #49d3c8
+}
+
+.knobs span {
+    display: block;
+    font-size: 10px;
+    color: #8facb3
+}
+
+.knobs b {
+    display: block;
+    margin-top: 5px;
+    font: 500 13px 'DM Mono';
+    color: #e5f2f1
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px
+}
+
+.chips span {
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #123642;
+    font: 500 10px 'DM Mono';
+    color: #83c9c2
+}
+
+.pair b.text {
+    max-width: 62%;
+    font-family: Manrope;
+    text-align: right;
+    line-height: 1.5
+}
+
+.instructor-note {
+    margin-top: 20px;
+    padding: 14px 16px;
+    border-left: 2px solid #49d3c8;
+    background: #0f2c36
+}
+
+.instructor-note b {
+    font-size: 11px;
+    color: #7fdccd
+}
+
+.instructor-note p {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.65;
+    color: #bed4d8
+}
+
+.proposal {
+    margin-top: 14px;
+    padding: 16px 18px;
+    border: 1px solid #244856;
+    border-left: 3px solid #49d3c8;
+    border-radius: 8px;
+    background: #0e2833
+}
+
+.proposal.approved {
+    border-left-color: #2bbfa4;
+    opacity: .72
+}
+
+.proposal.rejected {
+    border-left-color: #b8503c;
+    opacity: .72
+}
+
+.proposal header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px
+}
+
+.proposal h3 {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #e2efef
+}
+
+.proposal .status {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #123642;
+    font-size: 10px;
+    color: #83c9c2
+}
+
+.proposal .status.approved {
+    background: #14392f;
+    color: #6fd6a8
+}
+
+.proposal .status.rejected {
+    background: #35201c;
+    color: #e5937d
+}
+
+.proposal ul {
+    padding-left: 18px;
+    margin: 12px 0;
+    font-size: 11px;
+    line-height: 1.7;
+    color: #b7ccd0
+}
+
+.review {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px
+}
+
+.review input {
+    flex: 1;
+    padding: 9px 12px;
+    border: 1px solid #27515e;
+    border-radius: 7px;
+    background: #0b202b;
+    color: #d9e8ee;
+    font-size: 12px
+}
+
+.review button {
+    padding: 9px 16px;
+    border: 1px solid #2c5d68;
+    border-radius: 7px;
+    background: #0d2932;
+    color: #cfe3e6;
+    font-size: 11px
+}
+
+.review button.primary {
+    border-color: #2bbfa4;
+    background: #14392f;
+    color: #8fe6cd
+}
+
+.review button.danger {
+    border-color: #7a3a2e;
+    background: #2a1512;
+    color: #e5937d
+}
+
+.mine-actions {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0
+}
+
+.mine-actions button {
+    padding: 10px 16px;
+    border: 1px solid #2c5d68;
+    border-radius: 7px;
+    background: #0d2932;
+    color: #cfe3e6;
+    font-size: 11px
+}
+
+.mine-actions button:hover:enabled {
+    border-color: #49d3c8
+}
+
+.finding {
+    margin-top: 14px;
+    padding: 16px 18px;
+    border: 1px solid #244856;
+    border-radius: 8px;
+    background: #0e2833
+}
+
+.finding header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px
+}
+
+.finding h3 {
+    margin: 0;
+    font-size: 13px;
+    color: #e2efef
+}
+
+.finding header b {
+    font: 500 19px 'DM Mono';
+    color: #e5937d
+}
+
+.finding p {
+    font-size: 12px;
+    line-height: 1.65;
+    color: #b7ccd0
+}
+
+.memo ul {
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #b7ccd0
+}
+
+.memo b {
+    color: #7fdccd
+}
+
 @media(max-width:1050px) {
     .console-grid {
         grid-template-columns: 230px 1fr

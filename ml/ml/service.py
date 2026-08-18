@@ -46,6 +46,7 @@ Db = Annotated[sqlite3.Connection, Depends(get_db)]
 
 
 @app.get("/health", summary="Состояние сервиса")
+@app.get("/ml/v1/health", summary="Состояние сервиса", include_in_schema=False)
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
@@ -53,6 +54,33 @@ def health() -> dict[str, Any]:
         "llm_model": config.LLM_MODEL,
         "backend_db_readable": config.BACKEND_DB.exists(),
     }
+
+
+@app.get("/ml/v1/sessions", summary="Прохождения для разбора")
+def list_sessions(limit: int = 50) -> dict[str, Any]:
+    """Список прохождений со слабым местом каждого: с него начинается разбор эксперта.
+
+    Порядок обратный: свежие прохождения сверху, потому что разбирают обычно последнее.
+    """
+
+    sessions = list(reversed(data.load_backend_sessions()))[:limit]
+    items = []
+    for facts in sessions:
+        weak = skills.evaluate(facts).weak_skill
+        items.append(
+            {
+                "session_id": facts.session_id,
+                "operator_id": facts.operator_id,
+                "level_no": facts.level_no,
+                "status": facts.status,
+                "outcome": facts.outcome,
+                "sim_time_ms": facts.sim_time_ms,
+                "disturbance_happened": facts.disturbance_happened,
+                "weak_skill": weak.code if weak else None,
+                "weak_skill_name": weak.name if weak else None,
+            }
+        )
+    return {"total": len(items), "items": items}
 
 
 @app.get("/ml/v1/sessions/{session_id}/advice", summary="Рекомендация по прохождению")

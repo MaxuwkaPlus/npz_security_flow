@@ -1,6 +1,6 @@
 import { StartSessionForm } from "../components/Forms/StartSessionForm.jsx";
 
-export function StartPage({ scenarios, onStart }) {
+export function StartPage({ scenarios, onStart, onExpert }) {
   return (
     <main className="start-page">
       <div className="hero">
@@ -15,6 +15,9 @@ export function StartPage({ scenarios, onStart }) {
           подтвердите стабильность установки.
         </p>
         <div className="hero-line" />
+        <button className="expert-link" onClick={onExpert}>
+          Кабинет эксперта →
+        </button>
       </div>
       <StartSessionForm scenarios={scenarios} onStart={onStart} />
     </main>

@@ -18,7 +18,11 @@ export function HomePage({ training }) {
 
   return (
     <main className="app-shell">
-      <AppHeader session={training.session} wsStatus={training.wsStatus} />
+      <AppHeader
+        session={training.session}
+        wsStatus={training.wsStatus}
+        onExpert={() => training.setScreen("expert")}
+      />
       <StageProgress
         scenario={training.scenario}
         currentStageCode={training.session.current_stage_code}
