@@ -5,9 +5,10 @@ import { useSessionSocket } from "./useSessionSocket.js";
 
 const EMPTY_SNAPSHOT = { values: {}, derived: {} };
 
-export function useTrainingSession() {
+export function useTrainingSession(auth) {
   const [screen, setScreen] = useState("start");
   const [scenarios, setScenarios] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [scenario, setScenario] = useState(null);
   const [session, setSession] = useState(null);
   const [topology, setTopology] = useState(null);
@@ -25,11 +26,26 @@ export function useTrainingSession() {
     setTimeout(() => setNotification(null), 4200);
   }, []);
 
-  useEffect(() => {
-    api.scenarios().then(setScenarios).catch((error) => {
+  const loadSessions = useCallback(async () => {
+    try {
+      setSessions(await api.sessions());
+    } catch (error) {
       notify(apiErrorMessage(error), "error");
-    });
+    }
   }, [notify]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return;
+
+    // Список сценариев нужен тому, кто назначает обучение; обучаемому — только
+    // назначенные ему прохождения.
+    if (auth.can("session.create")) {
+      api.scenarios().then(setScenarios).catch((error) => {
+        notify(apiErrorMessage(error), "error");
+      });
+    }
+    loadSessions();
+  }, [auth.isAuthenticated, auth.can, loadSessions, notify]);
 
   const refreshSessionState = useCallback(async () => {
     if (!session?.id) return;
@@ -129,10 +145,38 @@ export function useTrainingSession() {
       setSession(createdSession);
       setTopology(await api.topology(selectedScenario.installation_version_id));
       setScreen("console");
+      loadSessions();
       notify("Сессия создана. Запустите симуляцию.");
     } catch (error) {
       notify(apiErrorMessage(error), "error");
     }
+  };
+
+  const openSession = async (summary) => {
+    try {
+      const [fullSession, selectedScenario] = await Promise.all([
+        api.state(summary.id),
+        api.scenario(summary.scenario_version_id),
+      ]);
+
+      setScenario(selectedScenario);
+      setSession(fullSession);
+      setTopology(await api.topology(selectedScenario.installation_version_id));
+      setAlarms(await api.alarms(summary.id));
+      setScreen("console");
+    } catch (error) {
+      notify(apiErrorMessage(error), "error");
+    }
+  };
+
+  const leaveSession = () => {
+    setSession(null);
+    setScenario(null);
+    setSnapshot(EMPTY_SNAPSHOT);
+    setAlarms([]);
+    setActionLog([]);
+    setScreen("start");
+    loadSessions();
   };
 
   const changeLifecycle = async (command) => {
@@ -230,6 +274,10 @@ export function useTrainingSession() {
   return {
     actionLog,
     alarms,
+    leaveSession,
+    loadSessions,
+    openSession,
+    sessions,
     acknowledgeAlarm,
     cancelAction,
     changeLifecycle,

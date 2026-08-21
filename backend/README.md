@@ -14,7 +14,18 @@ cd backend
 uv sync
 uv run alembic upgrade head          # схема на чистой БД
 uv run python -m app.cli seed        # публикация установки, сценария и политики оценки
+uv run python -m app.cli seed-users  # учётные записи по одной на роль MVP
 uv run uvicorn app.main:app --reload
+```
+
+`seed-users` печатает сгенерированные пароли **один раз** — сохраните их сразу.
+В коде и конфигурации паролей нет и быть не должно. Команда идемпотентна: уже
+заведённые записи пропускаются, поэтому повторный запуск не сбрасывает пароли.
+
+Матрицу ролей и прав можно посмотреть, не поднимая сервис:
+
+```bash
+uv run python -m app.cli roles
 ```
 
 Документация API: `http://127.0.0.1:8000/docs`, схема — `/openapi.json`.
@@ -28,6 +39,9 @@ uv run uvicorn app.main:app --reload
 | `DATABASE_URL` | `sqlite+aiosqlite:///./var/npz_security_flow.db` | Файловая SQLite; каталог создаётся автоматически |
 | `SIMULATION_SPEED_FACTOR` | `1.0` | Во сколько раз симуляция быстрее реального времени |
 | `SQLITE_BUSY_TIMEOUT_MS` | `5000` | Ограниченное ожидание блокировки записи |
+| `AUTH_TOKEN_TTL_MINUTES` | `720` | Срок жизни токена доступа |
+| `ALLOW_GUEST_TRAINING` | `true` | Пульт открыт без входа: `POST /auth/guest` выдаёт токен на своё прохождение |
+| `GUEST_TOKEN_TTL_MINUTES` | `240` | Срок жизни гостевого токена |
 | `LOG_LEVEL` | `INFO` | Уровень структурированных JSON-логов |
 
 Сценарий длится 65 минут симуляционного времени. Для демонстрации поднимайте
@@ -47,40 +61,104 @@ uv run pytest -q
 прикладные сценарии на временной файловой SQLite), `tests/contract` (REST, WebSocket и
 OpenAPI), `tests/e2e` (демонстрационные прохождения, replay и нагрузка).
 
+## Доступ и роли
+
+Проверка прав выполняется на сервере при каждом запросе. Фронтенд прячет недоступные
+разделы, но это удобство интерфейса: обращение напрямую отклоняется так же.
+
+| Роль | Что может |
+|---|---|
+| `guest` | заводить, вести и проходить **своё** прохождение; чужого не видит |
+| `trainee` | проходить назначенные сценарии, видеть свои прохождения и отчёты |
+| `instructor` | назначать сценарии, запускать, ставить на паузу и прекращать, читать любой отчёт |
+| `expert` | читать любые прохождения и отчёты, выгружать данные, утверждать предложения |
+| `security_admin` | журнал доступа, политики и учётные записи |
+
+Роли следующего цикла — `scenario_author`, `admin`, `support` — уже описаны в матрице
+и покрыты тестами, но пока не назначаются: `POST /users` с такой ролью отвечает
+`ROLE_NOT_AVAILABLE`. Так модель остаётся полной и проверяемой, а реальная поверхность
+доступа — только реализованной.
+
+`guest` не назначается по той же ручке и по более важной причине: эту роль выдаёт себе
+сервер вместе с гостевым токеном. Она нужна тому, кто садится за пульт без учётной
+записи — и потому ведёт своё прохождение сам, за отсутствием инструктора. Право на это
+отдельное (`session.control_own`, «только своё»), а не ослабленный `session.control`:
+иначе «ведёт чужое обучение» и «сам себе включил тренажёр» перестали бы различаться и в
+матрице, и в журнале. Кабинет эксперта и рабочее место администратора ИБ гостю закрыты.
+
+Роль — это упаковка прав, решение принимается по конкретному праву. Отсюда следуют
+свойства, которые проверяются тестами, а не соблюдаются на честном слове:
+
+- инструктор ведёт сессию, но не подаёт команды на установку вместо оператора —
+  иначе журнал перестанет отвечать, чей навык проверяется;
+- завести прохождение чужим именем может только тот, кто ведёт чужое обучение: иначе
+  результаты оказались бы подписаны кем угодно;
+- автор сценариев не получает права менять системные правила безопасности, scoring,
+  модель риска и удалять результаты обучения;
+- администратор ИБ расследует события, но содержания отчётов об обучении не видит;
+- техподдержка видит факт и состояние прохождения, но не его содержание.
+
+Вход выдаёт непрозрачный токен: ролей и срока в нём нет, состояние сеанса хранится на
+сервере, поэтому отзыв роли и отключение учётной записи действуют немедленно.
+Пароли хранятся как `scrypt` с индивидуальной солью, токен — как SHA-256; внешних
+зависимостей для этого не потребовалось.
+
+Гостевой вход отличается в журнале от проверенного: он пишется кодом события
+`guest_session`, а не `login`, — администратору ИБ нужно видеть, где личность не
+проверялась. Отключается режим переменной `ALLOW_GUEST_TRAINING=false`; тогда пульт
+требует входа, как и остальные разделы.
+
+Каждый отказ в доступе, вход и изменение учётной записи попадают в
+`security_events` — их читает `GET /api/v1/security-events`. Адрес клиента намеренно
+не сохраняется: `AGENTS.md` ограничивает сбор персональных данных.
+
 ## Демонстрационное прохождение
 
+Пароли — из вывода `seed-users`. Сессию назначает и ведёт инструктор, установкой
+управляет оператор: это два разных токена, и подменить их нельзя.
+
 ```bash
-SC=$(curl -s localhost:8000/api/v1/scenarios | jq -r '.[0].id')
-SID=$(curl -s -X POST localhost:8000/api/v1/sessions -H 'content-type: application/json' \
-  -d "{\"request_id\":\"r1\",\"operator_id\":\"op-1\",\"scenario_version_id\":\"$SC\",\"level_no\":1,\"random_seed\":7}" | jq -r .id)
+API=localhost:8000/api/v1
+login() { curl -s -X POST $API/auth/login -H 'content-type: application/json' \
+  -d "{\"username\":\"$1\",\"password\":\"$2\"}" | jq -r .access_token; }
 
-curl -s -X POST localhost:8000/api/v1/sessions/$SID/start -H 'content-type: application/json' -d '{"request_id":"r2"}'
-curl -s -X POST localhost:8000/api/v1/sessions/$SID/actions -H 'content-type: application/json' \
-  -d '{"request_id":"r3","action_type":"start_feed_pump","target_code":"N-1"}'
-curl -s -X POST localhost:8000/api/v1/sessions/$SID/actions -H 'content-type: application/json' \
-  -d '{"request_id":"r4","action_type":"set_wash_water","target_code":"ELOU","value":{"ratio":0.075}}'
-curl -s -X POST localhost:8000/api/v1/sessions/$SID/actions -H 'content-type: application/json' \
-  -d '{"request_id":"r5","action_type":"start_transfer_pump","target_code":"N-20"}'
-curl -s -X POST localhost:8000/api/v1/sessions/$SID/actions -H 'content-type: application/json' \
-  -d '{"request_id":"r6","action_type":"set_furnace_heat_load","target_code":"FURNACES","value":{"heat_load_pct":100}}'
+INS=$(login instructor-1 ПАРОЛЬ_ИНСТРУКТОРА)
+OP=$(login operator-1 ПАРОЛЬ_ОПЕРАТОРА)
 
-curl -s localhost:8000/api/v1/sessions/$SID/state
-curl -s localhost:8000/api/v1/sessions/$SID/alarms
-curl -s localhost:8000/api/v1/sessions/$SID/report
+SC=$(curl -s $API/scenarios -H "authorization: Bearer $INS" | jq -r '.[0].id')
+SID=$(curl -s -X POST $API/sessions -H "authorization: Bearer $INS" -H 'content-type: application/json' \
+  -d "{\"request_id\":\"r1\",\"operator_id\":\"operator-1\",\"scenario_version_id\":\"$SC\",\"level_no\":1,\"random_seed\":7}" | jq -r .id)
+
+curl -s -X POST $API/sessions/$SID/start -H "authorization: Bearer $INS" \
+  -H 'content-type: application/json' -d '{"request_id":"r2"}'
+
+act() { curl -s -X POST $API/sessions/$SID/actions -H "authorization: Bearer $OP" \
+  -H 'content-type: application/json' -d "$1"; }
+act '{"request_id":"r3","action_type":"start_feed_pump","target_code":"N-1"}'
+act '{"request_id":"r4","action_type":"set_wash_water","target_code":"ELOU","value":{"ratio":0.075}}'
+act '{"request_id":"r5","action_type":"start_transfer_pump","target_code":"N-20"}'
+act '{"request_id":"r6","action_type":"set_furnace_heat_load","target_code":"FURNACES","value":{"heat_load_pct":100}}'
+
+curl -s $API/sessions/$SID/state  -H "authorization: Bearer $OP"
+curl -s $API/sessions/$SID/alarms -H "authorization: Bearer $OP"
+curl -s $API/sessions/$SID/report -H "authorization: Bearer $INS"
 ```
 
-Поток состояния в реальном времени: `ws://localhost:8000/ws/v1/sessions/{session_id}`.
-Клиент передаёт `?last_sequence_no=N`, получает пропущенные сообщения из журнала и
+Поток состояния в реальном времени:
+`ws://localhost:8000/ws/v1/sessions/{session_id}?token=...`. Токен идёт параметром
+запроса: браузерный WebSocket не умеет задавать заголовки. Канал закрыт тем же
+правилом, что и чтение сессии по REST; отказ приходит кодом закрытия 4401 или 4403.
+Клиент передаёт `&last_sequence_no=N`, получает пропущенные сообщения из журнала и
 продолжает слушать; по `sequence_no` он замечает пропуск и запрашивает состояние REST-ом.
 
 ## Устройство
 
 ```text
 app/
-├── domain/          технологические правила: двойник, тревоги, этапы, оценка
+├── domain/          технологические правила и матрица ролей: двойник, тревоги, этапы, оценка, rbac
 ├── application/     прикладные сценарии и транзакционные границы
 ├── infrastructure/  ORM, репозитории, realtime, фоновая симуляция, seed
-└── api/v1/          REST и WebSocket, DTO белым списком полей
+└── api/v1/          REST и WebSocket, DTO белым списком полей, проверки прав
 ```
 
 Доменный слой не импортирует FastAPI, SQLAlchemy и транспорт. Пороги, коэффициенты,
@@ -94,6 +172,9 @@ app/
   описаны апериодическими звеньями, запаздывание нарастает вниз по цепочке.
 - **Возмущение вводится после подтверждения устойчивого режима**, а не в фиксированный
   момент: оператор может выйти на режим быстрее или медленнее.
+- **Права проверяются в домене и API, а не в интерфейсе.** Матрица живёт в
+  `app/domain/rbac.py` и покрыта тестами разделения полномочий; спрятанная кнопка
+  ничего не решает.
 - **Скрытое состояние не покидает backend.** Причина, целевая ветвь, seed и
   интенсивность возмущения доступны только расчёту, аудиту и отчёту инструктора.
 - **Прохождение воспроизводимо.** Одинаковые версии, seed и журнал действий дают

@@ -1,6 +1,8 @@
-from fastapi import APIRouter, status
+from typing import Annotated
 
-from app.api.deps import SessionRunnerDep, UnitOfWorkDep
+from fastapi import APIRouter, Query, status
+
+from app.api.deps import PrincipalDep, SessionRunnerDep, UnitOfWorkDep, require
 from app.api.v1.schemas.actions import ActionResponse, SubmitActionRequest
 from app.api.v1.schemas.alarms import AcknowledgeAlarmRequest, AlarmResponse
 from app.api.v1.schemas.assessment import (
@@ -18,18 +20,35 @@ from app.api.v1.schemas.observations import (
 )
 from app.api.v1.schemas.sessions import CreateSessionRequest, SessionCommandRequest, SessionResponse
 from app.api.v1.tags import ACTIONS, ALARMS, ASSESSMENT, OBSERVATIONS, SESSION
+from app.application.access import (
+    authorize_session_assign,
+    authorize_session_control,
+    authorize_session_operate,
+    authorize_session_read,
+)
 from app.application.actions import cancel_action, submit_action
 from app.application.alarms import acknowledge_alarm, list_alarms
 from app.application.assessment import current_checkpoint, submit_answers, submit_nasa_tlx
 from app.application.observations import record_observation, submit_diagnosis
 from app.application.runtime_config import sagat_policy
-from app.application.sessions import create_session, get_session_state, transition_session
+from app.application.sessions import (
+    create_session,
+    get_session_state,
+    list_sessions,
+    transition_session,
+)
 from app.core.errors import NotFoundError
+from app.domain.rbac import Permission, Principal
 from app.domain.sessions import SessionCommand, SessionStatus, is_terminal
 from app.infrastructure.db.models import ScenarioVersion
 
 # Тег указан у каждой ручки: теги роутера складывались бы с ними и группа дублировалась.
 router = APIRouter(prefix="/sessions")
+
+# Право завести прохождение проверяется зависимостью, а кому именно его назначают —
+# уже в обработчике: инструктору можно любому оператору, самостоятельному обучаемому
+# только себе. Управление ходом и работа за пультом сверяются с владельцем сессии.
+CreatesSessions = Annotated[Principal, require(Permission.SESSION_CREATE)]
 
 
 @router.post(
@@ -39,40 +58,64 @@ router = APIRouter(prefix="/sessions")
     tags=[SESSION],
     summary="Создать сессию",
 )
-async def post_session(payload: CreateSessionRequest, uow: UnitOfWorkDep) -> SessionResponse:
+async def post_session(
+    payload: CreateSessionRequest, principal: CreatesSessions, uow: UnitOfWorkDep
+) -> SessionResponse:
     """Заводит прохождение по выбранному сценарию и уровню сложности, фиксируя версии конфигурации.
 
     Сессия сразу готова к запуску. Скрытые параметры возмущения выбираются здесь же по seed
     и наружу не отдаются: причину оператор должен определить по приборам.
     """
 
+    authorize_session_assign(principal, payload.operator_id)
     state = await create_session(
         uow,
         request_id=payload.request_id,
         operator_id=payload.operator_id,
         scenario_version_id=payload.scenario_version_id,
         level_no=payload.level_no,
-        instructor_id=payload.instructor_id,
+        # Инструктора берём из токена: назначить сессию от чужого имени нельзя.
+        # У самостоятельного прохождения ведущий и оператор совпадают.
+        instructor_id=principal.subject_id,
         random_seed=payload.random_seed,
     )
     return SessionResponse.from_state(state)
 
 
+@router.get("", response_model=list[SessionResponse], tags=[SESSION], summary="Список прохождений")
+async def get_sessions(
+    principal: PrincipalDep,
+    uow: UnitOfWorkDep,
+    operator_id: Annotated[str | None, Query(description="Фильтр по оператору")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[SessionResponse]:
+    """Прохождения от новых к старым.
+
+    Обучаемому отдаются только назначенные ему сессии — иначе он не нашёл бы, куда
+    садиться за пульт; инструктору и эксперту доступны все.
+    """
+
+    states = await list_sessions(uow, principal, operator_id=operator_id, limit=limit)
+    return [SessionResponse.from_state(state) for state in states]
+
+
 @router.get(
     "/{session_id}", response_model=SessionResponse, tags=[SESSION], summary="Сессия по идентификатору"
 )
-async def get_session(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
+async def get_session(session_id: str, principal: PrincipalDep, uow: UnitOfWorkDep) -> SessionResponse:
     """Статус, этап и симуляционное время сессии. Отдаёт то же, что `/state`."""
 
+    await authorize_session_read(uow, principal, session_id)
     return SessionResponse.from_state(await get_session_state(uow, session_id))
 
 
 @router.get(
     "/{session_id}/state", response_model=SessionResponse, tags=[SESSION], summary="Текущее состояние сессии"
 )
-async def get_state(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
+async def get_state(session_id: str, principal: PrincipalDep, uow: UnitOfWorkDep) -> SessionResponse:
     """Текущее состояние сессии; используется клиентом после разрыва WebSocket."""
 
+    await authorize_session_read(uow, principal, session_id)
     return SessionResponse.from_state(await get_session_state(uow, session_id))
 
 
@@ -84,7 +127,10 @@ async def get_state(session_id: str, uow: UnitOfWorkDep) -> SessionResponse:
     summary="Подать команду оператора",
 )
 async def post_action(
-    session_id: str, payload: SubmitActionRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: SubmitActionRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> ActionResponse:
     """Принимает команду оператора: насосы, клапаны, промывочная вода, тепловая нагрузка печей.
 
@@ -93,6 +139,7 @@ async def post_action(
     """
 
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_operate(uow, principal, session_id)
         receipt = await submit_action(
             uow,
             session_id,
@@ -112,7 +159,10 @@ async def post_action(
     summary="Записать наблюдение",
 )
 async def post_observation(
-    session_id: str, payload: RecordObservationRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: RecordObservationRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> ObservationResponse:
     """Фиксирует явную проверку участка оператором: осмотр узла, сравнение расходов, заявление
     об отклонении, проверку последствий после воздействия.
@@ -122,6 +172,7 @@ async def post_observation(
     """
 
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_operate(uow, principal, session_id)
         receipt = await record_observation(
             uow,
             session_id,
@@ -141,7 +192,10 @@ async def post_observation(
     summary="Заявить диагноз",
 )
 async def post_diagnosis(
-    session_id: str, payload: SubmitDiagnosisRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: SubmitDiagnosisRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> DiagnosisResponse:
     """Оператор называет затронутый участок, характер отклонения и предполагаемую первопричину.
 
@@ -150,6 +204,7 @@ async def post_diagnosis(
     """
 
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_operate(uow, principal, session_id)
         receipt = await submit_diagnosis(
             uow,
             session_id,
@@ -168,13 +223,16 @@ async def post_diagnosis(
     tags=[ASSESSMENT],
     summary="Открытая контрольная точка SAGAT",
 )
-async def get_current_sagat(session_id: str, uow: UnitOfWorkDep) -> SagatCheckpointResponse | None:
+async def get_current_sagat(
+    session_id: str, principal: PrincipalDep, uow: UnitOfWorkDep
+) -> SagatCheckpointResponse | None:
     """Открытая контрольная точка ситуационной осведомлённости или ничего.
 
     Вопросы приходят без эталонных ответов: эталон вычисляется на сервере из состояния установки
     на момент вопроса. Симуляция при этом не останавливается.
     """
 
+    await authorize_session_read(uow, principal, session_id)
     scenario = await _scenario_of(uow, session_id)
     view = await current_checkpoint(uow, session_id, sagat_policy(scenario))
     return None if view is None else SagatCheckpointResponse.from_view(view)
@@ -190,6 +248,7 @@ async def post_sagat_answers(
     session_id: str,
     checkpoint_id: str,
     payload: SubmitSagatAnswersRequest,
+    principal: PrincipalDep,
     runner: SessionRunnerDep,
 ) -> SagatResultResponse:
     """Принимает ответы оператора и сразу оценивает их, сверяя с фактическим состоянием установки.
@@ -199,6 +258,7 @@ async def post_sagat_answers(
     """
 
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_operate(uow, principal, session_id)
         scenario = await _scenario_of(uow, session_id)
         result = await submit_answers(uow, session_id, checkpoint_id, payload.answers, sagat_policy(scenario))
     return SagatResultResponse.from_result(result)
@@ -212,7 +272,10 @@ async def post_sagat_answers(
     summary="Анкета субъективной нагрузки NASA-TLX",
 )
 async def post_nasa_tlx(
-    session_id: str, payload: NasaTlxRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: NasaTlxRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> NasaTlxResponseSchema:
     """Шесть шкал субъективной нагрузки, заполняются после прохождения и только один раз.
 
@@ -221,6 +284,7 @@ async def post_nasa_tlx(
     """
 
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_operate(uow, principal, session_id)
         response = await submit_nasa_tlx(uow, session_id, payload.model_dump())
     return NasaTlxResponseSchema.from_model(response)
 
@@ -231,7 +295,9 @@ async def post_nasa_tlx(
     tags=[ACTIONS],
     summary="Отменить команду",
 )
-async def post_action_cancel(session_id: str, action_id: str, runner: SessionRunnerDep) -> ActionResponse:
+async def post_action_cancel(
+    session_id: str, action_id: str, principal: PrincipalDep, runner: SessionRunnerDep
+) -> ActionResponse:
     """Отзывает команду, которую ещё не применил очередной шаг симуляции.
 
     Применённую отменить уже нельзя — только скомпенсировать другой командой, как на реальной
@@ -239,6 +305,7 @@ async def post_action_cancel(session_id: str, action_id: str, runner: SessionRun
     """
 
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_operate(uow, principal, session_id)
         receipt = await cancel_action(uow, session_id, action_id)
     return ActionResponse.from_receipt(receipt)
 
@@ -246,12 +313,13 @@ async def post_action_cancel(session_id: str, action_id: str, runner: SessionRun
 @router.get(
     "/{session_id}/alarms", response_model=list[AlarmResponse], tags=[ALARMS], summary="Активные тревоги"
 )
-async def get_alarms(session_id: str, uow: UnitOfWorkDep) -> list[AlarmResponse]:
+async def get_alarms(session_id: str, principal: PrincipalDep, uow: UnitOfWorkDep) -> list[AlarmResponse]:
     """Активные тревоги сессии; используется клиентом при переподключении.
 
     В обычной работе изменения приходят по WebSocket, эта ручка нужна для восстановления картины.
     """
 
+    await authorize_session_read(uow, principal, session_id)
     return [AlarmResponse.from_view(view) for view in await list_alarms(uow, session_id)]
 
 
@@ -265,6 +333,7 @@ async def post_alarm_acknowledge(
     session_id: str,
     alarm_id: str,
     payload: AcknowledgeAlarmRequest,
+    principal: PrincipalDep,
     runner: SessionRunnerDep,
 ) -> AlarmResponse:
     """Отмечает, что оператор увидел тревогу.
@@ -274,9 +343,8 @@ async def post_alarm_acknowledge(
     """
 
     async with runner.exclusive(session_id) as uow:
-        training_session = await uow.sessions.get(session_id)
-        operator_id = training_session.operator_id if training_session else ""
-        view = await acknowledge_alarm(uow, session_id, alarm_id, operator_id=operator_id)
+        training_session = await authorize_session_operate(uow, principal, session_id)
+        view = await acknowledge_alarm(uow, session_id, alarm_id, operator_id=training_session.operator_id)
     return AlarmResponse.from_view(view)
 
 
@@ -284,63 +352,78 @@ async def post_alarm_acknowledge(
     "/{session_id}/start", response_model=SessionResponse, tags=[SESSION], summary="Запустить сессию"
 )
 async def post_start(
-    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: SessionCommandRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> SessionResponse:
     """Переводит сессию в `running` и запускает фоновую симуляцию.
 
     С этого момента идёт симуляционное время и принимаются команды оператора.
     """
 
-    return await _transition(runner, session_id, SessionCommand.START, payload)
+    return await _transition(runner, principal, session_id, SessionCommand.START, payload)
 
 
 @router.post(
     "/{session_id}/pause", response_model=SessionResponse, tags=[SESSION], summary="Поставить на паузу"
 )
 async def post_pause(
-    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: SessionCommandRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> SessionResponse:
     """Останавливает симуляционное время — например, чтобы инструктор разобрал ситуацию.
 
     Команды и наблюдения оператора на паузе не принимаются.
     """
 
-    return await _transition(runner, session_id, SessionCommand.PAUSE, payload)
+    return await _transition(runner, principal, session_id, SessionCommand.PAUSE, payload)
 
 
 @router.post(
     "/{session_id}/resume", response_model=SessionResponse, tags=[SESSION], summary="Продолжить сессию"
 )
 async def post_resume(
-    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: SessionCommandRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> SessionResponse:
     """Возобновляет ход симуляционного времени после паузы; развитие обстановки продолжается
     с того места, где было остановлено."""
 
-    return await _transition(runner, session_id, SessionCommand.RESUME, payload)
+    return await _transition(runner, principal, session_id, SessionCommand.RESUME, payload)
 
 
 @router.post("/{session_id}/abort", response_model=SessionResponse, tags=[SESSION], summary="Прервать сессию")
 async def post_abort(
-    session_id: str, payload: SessionCommandRequest, runner: SessionRunnerDep
+    session_id: str,
+    payload: SessionCommandRequest,
+    principal: PrincipalDep,
+    runner: SessionRunnerDep,
 ) -> SessionResponse:
     """Досрочно завершает прохождение с итогом «прервано»; квалификационная оценка не считается.
 
     Действие необратимо: продолжить прерванную сессию нельзя, нужно создавать новую.
     """
 
-    return await _transition(runner, session_id, SessionCommand.ABORT, payload)
+    return await _transition(runner, principal, session_id, SessionCommand.ABORT, payload)
 
 
 async def _transition(
     runner: SessionRunnerDep,
+    principal: Principal,
     session_id: str,
     command: SessionCommand,
     payload: SessionCommandRequest,
 ) -> SessionResponse:
     # Транзакция команды выполняется внутри блокировки сессии и завершается до выхода
     # из блока: тик и команда никогда не пишут состояние одной сессии одновременно.
+    # Владелец проверяется здесь же — читать сессию дважды незачем.
     async with runner.exclusive(session_id) as uow:
+        await authorize_session_control(uow, principal, session_id)
         state = await transition_session(
             uow,
             session_id,

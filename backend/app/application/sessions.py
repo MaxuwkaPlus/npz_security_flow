@@ -14,8 +14,9 @@ from sqlalchemy.orm import selectinload
 
 from app.application.runtime_config import twin_config
 from app.application.tick import initial_runtime_state
-from app.core.errors import ConflictError, NotFoundError, PreconditionFailedError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, PreconditionFailedError
 from app.domain.disturbance import DisturbanceOption, select_disturbance
+from app.domain.rbac import Permission, Principal
 from app.domain.sessions import (
     InvalidSessionTransition,
     SessionCommand,
@@ -193,6 +194,29 @@ async def transition_session(
     state = _state(training_session, level_no)
     uow.sessions.add_command_request(request_id, session_id, command.value, state.to_json())
     return state
+
+
+async def list_sessions(
+    uow: UnitOfWork, principal: Principal, *, operator_id: str | None = None, limit: int = 50
+) -> list[SessionState]:
+    """Список прохождений в границах прав субъекта.
+
+    Обучаемый видит только назначенное ему: фильтр здесь не подсказка интерфейса,
+    а само правило — запрошенный чужой `operator_id` игнорировать нельзя, поэтому
+    он превращается в отказ.
+    """
+
+    if not principal.has(Permission.SESSION_READ_ANY):
+        if operator_id is not None and operator_id != principal.subject_id:
+            raise ForbiddenError(
+                "FORBIDDEN",
+                "Недостаточно прав для этого действия",
+                {"required_any_of": [Permission.SESSION_READ_ANY.value]},
+            )
+        operator_id = principal.subject_id
+
+    sessions = await uow.sessions.list_sessions(operator_id=operator_id, limit=limit)
+    return [_state(item, await _level_no(uow, item)) for item in sessions]
 
 
 async def get_session_state(uow: UnitOfWork, session_id: str) -> SessionState:

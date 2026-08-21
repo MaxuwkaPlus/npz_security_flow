@@ -5,17 +5,24 @@
 """
 
 import asyncio
+import secrets
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import pytest
 from alembic import command
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
+from app.api.v1.realtime import CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED
 from app.application.configuration import publish_installation, publish_scenario, publish_scoring_policy
+from app.domain.rbac import Role
 from app.infrastructure.db.engine import Database
+from app.infrastructure.db.models import User, UserRoleAssignment
+from app.infrastructure.security.passwords import hash_password
 from app.infrastructure.seed.installation import build_installation_spec
 from app.main import create_app
 from app.settings import Settings
@@ -23,6 +30,7 @@ from tests.support import alembic_config
 
 # Симуляция идёт в 100 раз быстрее реального времени, иначе тест ждал бы секунды.
 SPEED_FACTOR = 100.0
+PASSWORD = secrets.token_urlsafe(16)
 
 
 async def seed(settings: Settings) -> None:
@@ -32,6 +40,20 @@ async def seed(settings: Settings) -> None:
             installation = await publish_installation(session, build_installation_spec())
             await publish_scenario(session, installation)
             await publish_scoring_policy(session)
+            # Канал закрыт так же, как REST: без учётной записи подключиться нельзя.
+            user = User(
+                username="operator-1", display_name="operator-1", password_hash=hash_password(PASSWORD)
+            )
+            session.add(user)
+            await session.flush()
+            session.add(UserRoleAssignment(user_id=user.id, role=Role.TRAINEE.value))
+            session.add(UserRoleAssignment(user_id=user.id, role=Role.INSTRUCTOR.value))
+            other = User(
+                username="operator-2", display_name="operator-2", password_hash=hash_password(PASSWORD)
+            )
+            session.add(other)
+            await session.flush()
+            session.add(UserRoleAssignment(user_id=other.id, role=Role.TRAINEE.value))
     finally:
         await database.dispose()
 
@@ -46,6 +68,11 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     command.upgrade(alembic_config(settings.database_url), "head")
     asyncio.run(seed(settings))
     with TestClient(create_app(settings)) as test_client:
+        response = test_client.post(
+            "/api/v1/auth/login", json={"username": "operator-1", "password": PASSWORD}
+        )
+        assert response.status_code == 200, response.text
+        test_client.headers["authorization"] = f"Bearer {response.json()['access_token']}"
         yield test_client
 
 
@@ -66,6 +93,13 @@ def start_session(client: TestClient) -> str:
     return session_id
 
 
+def ws_url(client: TestClient, session_id: str, **params: Any) -> str:
+    """Адрес канала с токеном: браузерный WebSocket не умеет задавать заголовки."""
+
+    token = client.headers["authorization"].removeprefix("Bearer ")
+    return f"/ws/v1/sessions/{session_id}?{urlencode({'token': token, **params})}"
+
+
 def receive_until(websocket: Any, message_type: str, limit: int = 60) -> dict[str, Any]:
     for _ in range(limit):
         message: dict[str, Any] = websocket.receive_json()
@@ -77,7 +111,7 @@ def receive_until(websocket: Any, message_type: str, limit: int = 60) -> dict[st
 def test_client_receives_missed_events_from_the_journal(client: TestClient) -> None:
     session_id = start_session(client)
 
-    with client.websocket_connect(f"/ws/v1/sessions/{session_id}") as websocket:
+    with client.websocket_connect(ws_url(client, session_id)) as websocket:
         first = websocket.receive_json()
 
     assert first["schema_version"] == 1
@@ -90,7 +124,7 @@ def test_client_receives_missed_events_from_the_journal(client: TestClient) -> N
 def test_client_can_continue_from_last_known_sequence_no(client: TestClient) -> None:
     session_id = start_session(client)
 
-    with client.websocket_connect(f"/ws/v1/sessions/{session_id}?last_sequence_no=2") as websocket:
+    with client.websocket_connect(ws_url(client, session_id, last_sequence_no=2)) as websocket:
         message = websocket.receive_json()
 
     assert message["sequence_no"] == 3
@@ -100,7 +134,7 @@ def test_client_can_continue_from_last_known_sequence_no(client: TestClient) -> 
 def test_live_snapshots_carry_visible_values_only(client: TestClient) -> None:
     session_id = start_session(client)
 
-    with client.websocket_connect(f"/ws/v1/sessions/{session_id}") as websocket:
+    with client.websocket_connect(ws_url(client, session_id)) as websocket:
         snapshot = receive_until(websocket, "process_snapshot")
 
     assert snapshot["sim_time_ms"] % 5_000 == 0
@@ -115,7 +149,7 @@ def test_live_snapshots_carry_visible_values_only(client: TestClient) -> None:
 def test_operator_command_produces_action_message(client: TestClient) -> None:
     session_id = start_session(client)
 
-    with client.websocket_connect(f"/ws/v1/sessions/{session_id}") as websocket:
+    with client.websocket_connect(ws_url(client, session_id)) as websocket:
         client.post(
             f"/api/v1/sessions/{session_id}/actions",
             json={
@@ -133,7 +167,37 @@ def test_operator_command_produces_action_message(client: TestClient) -> None:
 def test_sequence_numbers_arrive_without_gaps(client: TestClient) -> None:
     session_id = start_session(client)
 
-    with client.websocket_connect(f"/ws/v1/sessions/{session_id}") as websocket:
+    with client.websocket_connect(ws_url(client, session_id)) as websocket:
         numbers = [websocket.receive_json()["sequence_no"] for _ in range(6)]
 
     assert numbers == list(range(1, 7))
+
+
+def test_channel_without_token_is_not_opened(client: TestClient) -> None:
+    """Канал отдаёт обстановку на установке, поэтому закрыт так же, как REST."""
+
+    session_id = start_session(client)
+
+    with (
+        pytest.raises(WebSocketDisconnect) as failure,
+        client.websocket_connect(f"/ws/v1/sessions/{session_id}") as websocket,
+    ):
+        websocket.receive_json()
+
+    # Отсутствие обязательного параметра отклоняется до проверки прав.
+    assert failure.value.code in {CLOSE_UNAUTHENTICATED, 1008}
+
+
+def test_foreign_session_is_not_streamed_to_another_trainee(client: TestClient) -> None:
+    session_id = start_session(client)
+    token = client.post("/api/v1/auth/login", json={"username": "operator-2", "password": PASSWORD}).json()[
+        "access_token"
+    ]
+
+    with (
+        pytest.raises(WebSocketDisconnect) as failure,
+        client.websocket_connect(f"/ws/v1/sessions/{session_id}?{urlencode({'token': token})}") as websocket,
+    ):
+        websocket.receive_json()
+
+    assert failure.value.code == CLOSE_FORBIDDEN

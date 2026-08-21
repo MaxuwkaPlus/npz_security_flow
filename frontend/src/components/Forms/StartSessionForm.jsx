@@ -2,8 +2,15 @@ import { useEffect, useState } from "react";
 
 const levelCaption = { 1: "обучение", 2: "стандарт", 3: "эксперт" };
 
-export function StartSessionForm({ scenarios, onStart }) {
-  const [operatorId, setOperatorId] = useState("operator-1");
+/**
+ * Заведение прохождения.
+ *
+ * Инструктор назначает его оператору по идентификатору. Тот, кто занимается сам,
+ * поля не видит: прохождение подписывается его собственным идентификатором, а
+ * подставить чужой всё равно не даст сервер.
+ */
+export function StartSessionForm({ scenarios, onStart, operatorId, canChooseOperator }) {
+  const [chosenOperatorId, setChosenOperatorId] = useState(operatorId || "operator-1");
   const [scenarioId, setScenarioId] = useState("");
   const [levelNo, setLevelNo] = useState(1);
   const selectedScenario =
@@ -16,21 +23,27 @@ export function StartSessionForm({ scenarios, onStart }) {
   const submit = (event) => {
     event.preventDefault();
     if (!selectedScenario) return;
-    onStart({ operatorId, scenarioId: selectedScenario.id, levelNo });
+    onStart({
+      operatorId: canChooseOperator ? chosenOperatorId : operatorId,
+      scenarioId: selectedScenario.id,
+      levelNo,
+    });
   };
 
   return (
     <form className="launch-card" onSubmit={submit}>
-      <h2>Новое прохождение</h2>
-      <label>
-        Идентификатор оператора
-        <input
-          value={operatorId}
-          maxLength="64"
-          onChange={(event) => setOperatorId(event.target.value)}
-          required
-        />
-      </label>
+      <h2>{canChooseOperator ? "Новое прохождение" : "Начать прохождение"}</h2>
+      {canChooseOperator && (
+        <label>
+          Идентификатор оператора
+          <input
+            value={chosenOperatorId}
+            maxLength="64"
+            onChange={(event) => setChosenOperatorId(event.target.value)}
+            required
+          />
+        </label>
+      )}
       <label>
         Сценарий
         <select
@@ -64,7 +77,7 @@ export function StartSessionForm({ scenarios, onStart }) {
         {selectedScenario?.description || "Загрузка сценариев…"}
       </p>
       <button className="primary launch" disabled={!selectedScenario}>
-        Создать сессию <span>→</span>
+        {canChooseOperator ? "Создать сессию" : "К пульту"} <span>→</span>
       </button>
     </form>
   );

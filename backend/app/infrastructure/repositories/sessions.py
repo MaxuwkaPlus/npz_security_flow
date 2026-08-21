@@ -36,6 +36,18 @@ class SessionRepository:
     def add(self, training_session: TrainingSession) -> None:
         self._session.add(training_session)
 
+    async def list_sessions(
+        self, *, operator_id: str | None = None, limit: int = 50
+    ) -> Sequence[TrainingSession]:
+        """Прохождения от новых к старым; без фильтра — по всей установке."""
+
+        statement = select(TrainingSession).order_by(
+            TrainingSession.created_at.desc(), TrainingSession.id.desc()
+        )
+        if operator_id is not None:
+            statement = statement.where(TrainingSession.operator_id == operator_id)
+        return (await self._session.execute(statement.limit(limit))).scalars().all()
+
     async def get(self, session_id: str) -> TrainingSession | None:
         training_session: TrainingSession | None = await self._session.get(TrainingSession, session_id)
         return training_session

@@ -10,13 +10,14 @@ from app.application.sessions import SessionState
 
 
 class CreateSessionRequest(BaseModel):
+    # instructor_id в запросе нет: он берётся из токена, иначе сессию можно было бы
+    # назначить от чужого имени.
     request_id: str = Field(
         min_length=1, max_length=36, description="Уникальный идентификатор запроса, свой на каждый вызов"
     )
     operator_id: str = Field(min_length=1, max_length=64)
     scenario_version_id: str
     level_no: int = Field(ge=1, le=3)
-    instructor_id: str | None = None
     # Инструкторское поле: фиксированный seed нужен для воспроизводимой демонстрации.
     random_seed: int | None = Field(default=None, ge=0)
 

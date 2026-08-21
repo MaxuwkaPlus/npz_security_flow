@@ -24,6 +24,18 @@ class AppError(Exception):
         self.details = details or {}
 
 
+class UnauthenticatedError(AppError):
+    """Запрос без действительного токена."""
+
+    status_code = 401
+
+
+class ForbiddenError(AppError):
+    """Субъект известен, но права на действие у него нет."""
+
+    status_code = 403
+
+
 class NotFoundError(AppError):
     status_code = 404
 

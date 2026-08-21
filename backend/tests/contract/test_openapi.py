@@ -19,6 +19,17 @@ HIDDEN_FIELDS = frozenset(
 )
 EXPECTED_PATHS = {
     "/api/v1/health",
+    "/api/v1/auth/guest",
+    "/api/v1/auth/login",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/me",
+    "/api/v1/roles",
+    "/api/v1/users",
+    "/api/v1/users/{user_id}/roles",
+    "/api/v1/users/{user_id}/roles/{role}",
+    "/api/v1/users/{user_id}/active",
+    "/api/v1/users/{user_id}/password",
+    "/api/v1/security-events",
     "/api/v1/ready",
     "/api/v1/scenarios",
     "/api/v1/scenarios/{scenario_version_id}",

@@ -111,7 +111,7 @@ async def operator(client: AsyncClient, database: Database, configuration: Seede
         "/api/v1/sessions",
         json={
             "request_id": str(uuid4()),
-            "operator_id": "demo-operator",
+            "operator_id": "operator-1",
             "scenario_version_id": configuration.scenario_version_id,
             "level_no": 1,
             "random_seed": 42,

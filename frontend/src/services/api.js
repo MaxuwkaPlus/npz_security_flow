@@ -1,3 +1,5 @@
+import { accessToken, clearSession } from "./auth.js";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 export class ApiError extends Error {
@@ -10,29 +12,103 @@ export class ApiError extends Error {
 
 const requestId = () => crypto.randomUUID();
 
+/**
+ * Тело ответа как JSON, либо `undefined`, если это не JSON.
+ *
+ * Не всякий ответ приходит от приложения: остановленный backend доходит до клиента
+ * пустым `502` от прокси. Разобрать такое тело как JSON нельзя, и показывать
+ * сообщение парсера вместо причины — тоже: оно ничего не говорит оператору.
+ */
+function parseJson(body) {
+  if (!body) return null;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "content-type": "application/json", ...options.headers },
-    ...options,
-  });
-  const data = response.status === 204 ? null : await response.json();
+  const token = accessToken();
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+      ...options,
+    });
+  } catch {
+    throw new ApiError("NETWORK_ERROR", "Сервер недоступен");
+  }
+
+  const data = parseJson(await response.text());
 
   if (!response.ok) {
     const error = data?.error || {};
+    // Истёкший или отозванный токен: сеанс закончился, дальше — экран входа.
+    if (response.status === 401 && !path.startsWith("/auth/login")) {
+      clearSession();
+    }
+    // Шлюзовые коды означают, что до приложения не дошли: оно не запущено или не отвечает.
+    const unreachable = [502, 503, 504].includes(response.status);
     throw new ApiError(
-      error.code || "NETWORK_ERROR",
-      error.message || "Не удалось выполнить запрос",
+      error.code || (unreachable ? "SERVICE_UNAVAILABLE" : "NETWORK_ERROR"),
+      error.message ||
+        (unreachable ? "Сервер недоступен" : `Сервер ответил ошибкой ${response.status}`),
       error.details,
     );
   }
 
+  if (data === undefined) {
+    throw new ApiError("MALFORMED_RESPONSE", "Сервер вернул неожиданный ответ");
+  }
   return data;
 }
 
 export const api = {
+  login: (username, password) =>
+    request("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  // Вход без учётной записи: токен на своё прохождение и ничего сверх него.
+  guest: () => request("/auth/guest", { method: "POST" }),
+  logout: () => request("/auth/logout", { method: "POST" }),
+  me: () => request("/auth/me"),
+  roles: () => request("/roles"),
+  users: () => request("/users"),
+  createUser: (body) =>
+    request("/users", { method: "POST", body: JSON.stringify(body) }),
+  grantRole: (userId, role) =>
+    request(`/users/${userId}/roles`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+  revokeRole: (userId, role) =>
+    request(`/users/${userId}/roles/${role}`, { method: "DELETE" }),
+  setUserActive: (userId, isActive) =>
+    request(`/users/${userId}/active`, {
+      method: "POST",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+  securityEvents: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/security-events${query ? `?${query}` : ""}`);
+  },
   scenarios: () => request("/scenarios"),
   scenario: (id) => request(`/scenarios/${id}`),
   topology: (id) => request(`/installations/${id}/topology`),
+  sessions: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/sessions${query ? `?${query}` : ""}`);
+  },
   createSession: (body) =>
     request("/sessions", {
       method: "POST",
@@ -87,5 +163,10 @@ export function socketUrl(sessionId, lastSequenceNo) {
   const base =
     import.meta.env.VITE_WS_BASE_URL ||
     `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
-  return `${base}/ws/v1/sessions/${sessionId}?last_sequence_no=${lastSequenceNo}`;
+  // Токен идёт параметром: браузерный WebSocket не умеет задавать заголовки.
+  const query = new URLSearchParams({
+    token: accessToken() || "",
+    last_sequence_no: String(lastSequenceNo),
+  });
+  return `${base}/ws/v1/sessions/${sessionId}?${query}`;
 }

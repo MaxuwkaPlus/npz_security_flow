@@ -1,8 +1,9 @@
 from collections.abc import Sequence
+from typing import Annotated
 
 from fastapi import APIRouter
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep, require
 from app.api.v1.schemas.catalog import (
     EquipmentResponse,
     ProcessTagResponse,
@@ -15,14 +16,19 @@ from app.api.v1.schemas.catalog import (
 )
 from app.api.v1.tags import CATALOG
 from app.core.errors import NotFoundError
+from app.domain.rbac import Permission, Principal
 from app.infrastructure.db.models import Equipment, ScenarioVersion, TopologyEdge
 from app.infrastructure.repositories.catalog import CatalogRepository
 
 router = APIRouter(tags=[CATALOG])
 
+# Справочники доступны любой вошедшей роли: без списка сценариев не обходится
+# ни назначение обучения, ни разбор прохождения.
+ReadsCatalog = Annotated[Principal, require(Permission.CATALOG_READ)]
+
 
 @router.get("/scenarios", response_model=list[ScenarioSummaryResponse], summary="Список сценариев")
-async def list_scenarios(session: SessionDep) -> list[ScenarioSummaryResponse]:
+async def list_scenarios(_: ReadsCatalog, session: SessionDep) -> list[ScenarioSummaryResponse]:
     """Опубликованные сценарии для выбора перед прохождением.
 
     Идентификатор отсюда нужен, чтобы создать сессию.
@@ -37,7 +43,9 @@ async def list_scenarios(session: SessionDep) -> list[ScenarioSummaryResponse]:
     response_model=ScenarioDetailResponse,
     summary="Уровни сложности и этапы сценария",
 )
-async def get_scenario(scenario_version_id: str, session: SessionDep) -> ScenarioDetailResponse:
+async def get_scenario(
+    scenario_version_id: str, _: ReadsCatalog, session: SessionDep
+) -> ScenarioDetailResponse:
     """Уровни сложности для выбора и полный список этапов прохождения с обязательными проверками.
 
     По этапам строится индикатор прогресса. Скрытые шаблоны возмущения и эталонная
@@ -77,7 +85,9 @@ async def get_scenario(scenario_version_id: str, session: SessionDep) -> Scenari
     response_model=TopologyResponse,
     summary="Схема установки",
 )
-async def get_topology(installation_version_id: str, session: SessionDep) -> TopologyResponse:
+async def get_topology(
+    installation_version_id: str, _: ReadsCatalog, session: SessionDep
+) -> TopologyResponse:
     """Состав оборудования, связи между аппаратами и пороги приборов.
 
     Читается один раз, чтобы отрисовать мнемосхему и знать, при каком значении подсвечивать

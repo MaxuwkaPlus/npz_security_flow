@@ -11,6 +11,12 @@ from app.infrastructure.db.models.catalog import (
     ProcessTag,
     TopologyEdge,
 )
+from app.infrastructure.db.models.identity import (
+    AuthSession,
+    SecurityEvent,
+    User,
+    UserRoleAssignment,
+)
 from app.infrastructure.db.models.scenario import (
     AlarmRule,
     DisturbanceTemplate,
@@ -42,6 +48,7 @@ from app.infrastructure.db.models.session import (
 __all__ = [
     "SCHEMA_VERSION",
     "AlarmRule",
+    "AuthSession",
     "Base",
     "CommandRequest",
     "DisturbanceTemplate",
@@ -61,6 +68,7 @@ __all__ = [
     "ScenarioVersion",
     "ScoreEventRecord",
     "ScoringPolicyVersion",
+    "SecurityEvent",
     "SessionAlarm",
     "SessionEvent",
     "SessionReport",
@@ -68,4 +76,6 @@ __all__ = [
     "SessionStageHistory",
     "TopologyEdge",
     "TrainingSession",
+    "User",
+    "UserRoleAssignment",
 ]

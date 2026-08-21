@@ -1,12 +1,10 @@
-import { useState } from "react";
 import { ProposalQueue } from "../components/Expert/ProposalQueue.jsx";
 import { SessionReview } from "../components/Expert/SessionReview.jsx";
 import { SystemicFindings } from "../components/Expert/SystemicFindings.jsx";
 import { useExpert } from "../hooks/useExpert.js";
 
-export function ExpertPage({ onBack }) {
-  const [expertId, setExpertId] = useState("expert-1");
-  const expert = useExpert(expertId);
+export function ExpertPage({ auth, onBack }) {
+  const expert = useExpert(auth.user.username);
 
   return (
     <main className="report-page expert-page">
@@ -18,21 +16,31 @@ export function ExpertPage({ onBack }) {
           Рекомендации системы носят предварительный характер и вступают в силу только
           после вашего утверждения.
         </p>
-        <label className="expert-id">
-          Эксперт
-          <input
-            value={expertId}
-            maxLength="64"
-            onChange={(event) => setExpertId(event.target.value)}
-          />
-        </label>
-        <p className="hint">
-          {expert.health
-            ? `Сервис рекомендаций доступен · формулировки: ${
-                expert.health.llm_available ? expert.health.llm_model : "шаблоны, модель не запущена"
-              }`
-            : "Сервис рекомендаций недоступен. Тренажёр работает без него."}
-        </p>
+
+        {/* Подпись и состояние сервиса — это состояние рабочего места, а не текст.
+            Двумя плитками они читаются с одного взгляда и не растягивают шапку. */}
+        <div className="workplace-state">
+          <span className="state-tile">
+            <small>Подпись решений · сменить нельзя</small>
+            <b>{auth.user.display_name}</b>
+            <code>{auth.user.username}</code>
+          </span>
+
+          <span className={`state-tile ${expert.health ? "online" : "offline"}`}>
+            <small>Сервис рекомендаций</small>
+            <b>
+              <i className="state-dot" />
+              {expert.health ? "доступен" : "недоступен"}
+            </b>
+            <code>
+              {expert.health
+                ? expert.health.llm_available
+                  ? expert.health.llm_model
+                  : "шаблоны, модель не запущена"
+                : "тренажёр работает без него"}
+            </code>
+          </span>
+        </div>
       </header>
 
       {expert.error && <p className="banner negative">{expert.error}</p>}

@@ -1036,22 +1036,67 @@ button:disabled {
     max-width: 760px
 }
 
-.expert-page .expert-id {
-    display: inline-flex;
-    align-items: center;
+/* Состояние рабочего места эксперта: чем подписаны решения и жив ли сервис
+   рекомендаций. Плитки собраны из тех же токенов, что карточки на остальных
+   экранах, — тот же фон, та же рамка, тот же моноширинный для идентификаторов. */
+.workplace-state {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 10px;
-    margin-top: 22px;
-    font-size: 11px;
-    color: #88a5ae
+    margin-top: 26px
 }
 
-.expert-page .expert-id input {
-    padding: 8px 12px;
+.workplace-state .state-tile {
+    display: grid;
+    gap: 4px;
+    justify-items: start;
+    padding: 12px 16px;
+    min-width: 210px;
+    text-align: left;
     border: 1px solid #27515e;
-    border-radius: 7px;
-    background: #0b202b;
-    color: #d9e8ee;
-    font: 500 12px 'DM Mono'
+    border-radius: 10px;
+    background: #0b202b
+}
+
+.workplace-state .state-tile small {
+    font-size: 9px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #6d8b95
+}
+
+.workplace-state .state-tile b {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: #dceaec
+}
+
+.workplace-state .state-tile code {
+    font: 500 11px 'DM Mono', monospace;
+    color: #7fdccd
+}
+
+.workplace-state .state-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 100%;
+    background: #df7e4c
+}
+
+.workplace-state .online {
+    border-color: #2e7764
+}
+
+.workplace-state .online .state-dot {
+    background: #50d1a9;
+    box-shadow: 0 0 8px #50d1a9
+}
+
+.workplace-state .offline code {
+    color: #a88a6a
 }
 
 .expert-page .hint {
@@ -1503,4 +1548,197 @@ button:disabled {
     .process-map {
         overflow: auto
     }
+}
+/* --- доступ по ролям --------------------------------------------------- */
+
+.hero-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 26px
+}
+
+.hero .hero-links .expert-link {
+    margin-top: 0
+}
+
+.start-column {
+    display: grid;
+    gap: 22px;
+    align-content: center
+}
+
+.assigned-sessions .session-rows {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto
+}
+
+.assigned-sessions .session-rows button {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 12px 14px;
+    text-align: left;
+    border: 1px solid #27515e;
+    border-radius: 8px;
+    background: #071822;
+    color: #d9e8ee
+}
+
+.assigned-sessions .session-rows button:hover {
+    border-color: #49d3c8
+}
+
+.assigned-sessions .session-rows small {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: #88a5ae
+}
+
+.assigned-sessions .scenario-description {
+    color: #88a5ae;
+    line-height: 1.6;
+    min-height: 0
+}
+
+.assigned-sessions .session-rows b {
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    color: #e2eff0
+}
+
+.assigned-sessions .hint {
+    margin: 0 0 18px;
+    font-size: 12px;
+    color: #7d9aa3
+}
+
+.topbar .who {
+    font-size: 11px;
+    color: #88a5ae;
+    padding-left: 6px;
+    border-left: 1px solid #27515e
+}
+
+.user-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px
+}
+
+.user-form input,
+.user-form select {
+    border: 1px solid #294c59;
+    border-radius: 5px;
+    padding: 10px;
+    background: #071822;
+    color: #e3f0f1
+}
+
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px
+}
+
+.user-table th {
+    text-align: left;
+    padding: 8px 10px;
+    color: #7d9aa3;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #27515e
+}
+
+.user-table td {
+    padding: 10px;
+    vertical-align: top;
+    border-bottom: 1px solid #14313c
+}
+
+.user-table small {
+    display: block;
+    color: #7d9aa3;
+    font-size: 11px
+}
+
+.user-table tr.inactive,
+.user-table th.inactive {
+    opacity: .55
+}
+
+.role-chip {
+    margin: 0 4px 4px 0;
+    padding: 4px 8px;
+    border: 1px solid #2c5d68;
+    border-radius: 20px;
+    background: #0d2932;
+    color: #6fd6c2;
+    font-size: 11px
+}
+
+.role-chip:hover {
+    border-color: #e2707c;
+    color: #f0a6ae
+}
+
+/* Контейнер внутри ячейки, а не сама ячейка: `display: flex` на `td` ломает
+   выравнивание строки. */
+.user-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px
+}
+
+.user-actions select,
+.user-actions button,
+.journal-filter button,
+.assigned-sessions>button {
+    padding: 6px 10px;
+    border: 1px solid #2c5d68;
+    border-radius: 6px;
+    background: #0d2932;
+    color: #9dc0c8;
+    font-size: 11px
+}
+
+.journal-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px
+}
+
+.journal-filter .selected {
+    border-color: #49d3c8;
+    color: #9ae8da
+}
+
+.matrix-scroll {
+    overflow-x: auto
+}
+
+.user-table.matrix td:first-child {
+    white-space: nowrap;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px
+}
+
+.matrix-cell {
+    text-align: center;
+    color: #4ed0bb
+}
+
+.connection.denied {
+    background: #e2707c
 }

@@ -3,6 +3,7 @@ from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.infrastructure.repositories.catalog import CatalogRepository
+from app.infrastructure.repositories.identity import IdentityRepository
 from app.infrastructure.repositories.sessions import SessionRepository
 
 
@@ -51,6 +52,20 @@ class UnitOfWork:
     @property
     def catalog(self) -> CatalogRepository:
         return CatalogRepository(self.session)
+
+    @property
+    def identity(self) -> IdentityRepository:
+        return IdentityRepository(self.session)
+
+    async def commit(self) -> None:
+        """Завершает транзакцию досрочно, не дожидаясь выхода из контекста.
+
+        Нужно там, где клиент действует по ответу немедленно. Зависимость FastAPI
+        закрывается уже после того, как ответ ушёл, поэтому выданный токен успевает
+        не попасть в базу к следующему запросу — и тот отвечает «токен недействителен».
+        """
+
+        await self.session.commit()
 
     async def flush(self) -> None:
         await self.session.flush()

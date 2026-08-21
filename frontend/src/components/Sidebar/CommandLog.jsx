@@ -17,7 +17,7 @@ export function CommandLog({ actions, onCancel }) {
                 {action.target_code} · {action.status}
               </small>
             </div>
-            {action.status === "accepted" && action.id && (
+            {onCancel && action.status === "accepted" && action.id && (
               <button onClick={() => onCancel(action)}>Отменить</button>
             )}
           </article>

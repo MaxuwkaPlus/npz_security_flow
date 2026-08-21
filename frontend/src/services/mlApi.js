@@ -7,6 +7,34 @@ export class MlError extends Error {
   }
 }
 
+/**
+ * Тело ответа как JSON, либо `undefined`, если это не JSON.
+ *
+ * Разбирать тело вслепую нельзя: упавший сервис рекомендаций доходит до клиента
+ * пустым `502` от прокси, а не объектом с `detail`. Тогда `JSON.parse` бросает
+ * свою ошибку, и эксперт видит «unexpected character at line 1 column 1» вместо
+ * причины — сообщение парсера в интерфейсе не значит ничего.
+ */
+function parseJson(body) {
+  if (!body) return null;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
+function failure(response, data) {
+  // FastAPI кладёт причину в `detail`; это единственный случай, когда серверу есть
+  // что сказать эксперту.
+  if (typeof data?.detail === "string") return new MlError(data.detail, response.status);
+  // Шлюзовые коды означают, что до сервиса не дошли: он не запущен или не отвечает.
+  if ([502, 503, 504].includes(response.status)) {
+    return new MlError("Сервис рекомендаций недоступен", response.status);
+  }
+  return new MlError(`Сервис рекомендаций ответил ошибкой ${response.status}`, response.status);
+}
+
 async function request(path, options = {}) {
   let response;
   try {
@@ -19,9 +47,11 @@ async function request(path, options = {}) {
     throw new MlError("Сервис рекомендаций недоступен", 0);
   }
 
-  const data = response.status === 204 ? null : await response.json();
-  if (!response.ok) {
-    throw new MlError(data?.detail || "Не удалось выполнить запрос", response.status);
+  const data = parseJson(await response.text());
+
+  if (!response.ok) throw failure(response, data);
+  if (data === undefined) {
+    throw new MlError("Сервис рекомендаций вернул неожиданный ответ", response.status);
   }
   return data;
 }
