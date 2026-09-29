@@ -1,0 +1,26 @@
+/* UI-kit, стр. 9: RGB 0 90 155. Нейтральные и сигнальные цвета — UI-расширение,
+   а не дополнительные фирменные цвета. Знаки и логотипы не используются. */
+:root {
+  --brand: #005a9b;
+  --brand-hover: #004879;
+  --brand-soft: #edf4fa;
+  --text: #202b36;
+  --muted: #596976;
+  --border: #cdd6df;
+  --border-light: #e4e9ee;
+  --surface: #ffffff;
+  --canvas: #f4f6f8;
+  --success: #267044;
+  --success-bg: #eef7f1;
+  --warning: #855500;
+  --warning-bg: #fff6e3;
+  --danger: #b02a32;
+  --danger-bg: #fff0f1;
+  --radius: 3px;
+  --font-body: Arial, "Helvetica Neue", sans-serif;
+  /* PF Din не включён в репозиторий. Не извлекаем подмножества шрифта из PDF. */
+  --font-heading:
+    "PF Din Text Cond Pro", "Arial Narrow", "Roboto Condensed", Arial,
+    sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}

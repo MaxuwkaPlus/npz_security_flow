@@ -1,25 +1,23 @@
 import { SESSION_STATUS_LABELS } from "../../constants/index.js";
 import { formatTime } from "../../utils/helpers.js";
+import { PlatformHeader } from "../common/PlatformHeader.jsx";
 
 export function AppHeader({ auth, session, wsStatus, onExpert, onLeave }) {
   return (
-    <header className="topbar">
-      <div className="brand">
-        <span className="brand-mark">∿</span>
-        <div>
-          <b>ЭЛОУ-АВТ</b>
-          <small>операторский тренажёр</small>
-        </div>
-      </div>
+    <PlatformHeader section="Рабочее место оператора">
       <div className="session-meta">
-        <span className={`connection ${wsStatus}`} />
-        {wsStatus === "connected" && "связь установлена"}
-        {wsStatus === "denied" && "поток закрыт: нет доступа"}
-        {!["connected", "denied"].includes(wsStatus) && "подключение…"}
+        <span className="connection-label" role="status">
+          <i className={`connection ${wsStatus}`} />
+          {wsStatus === "connected" && "На связи"}
+          {wsStatus === "denied" && "Нет доступа к потоку"}
+          {!["connected", "denied"].includes(wsStatus) && "Подключение…"}
+        </span>
         <span className={`status ${session.status}`}>
           {SESSION_STATUS_LABELS[session.status] || session.status}
         </span>
-        <b>{formatTime(session.sim_time_ms)}</b>
+        <b className="simulation-clock" title="Симуляционное время">
+          {formatTime(session.sim_time_ms)}
+        </b>
         <span className="who" title={auth.user.roles.join(", ")}>
           {auth.user.display_name}
         </span>
@@ -32,6 +30,6 @@ export function AppHeader({ auth, session, wsStatus, onExpert, onLeave }) {
           К списку
         </button>
       </div>
-    </header>
+    </PlatformHeader>
   );
 }

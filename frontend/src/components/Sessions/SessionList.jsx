@@ -10,11 +10,22 @@ import { formatTime } from "../../utils/helpers.js";
 export function SessionList({ sessions, title, hint, onOpen, onRefresh }) {
   return (
     <section className="launch-card assigned-sessions">
-      <h2>{title}</h2>
+      <div className="section-heading">
+        <span className="section-number" aria-hidden="true">
+          02
+        </span>
+        <h2>{title}</h2>
+        <span className="item-count">{sessions.length}</span>
+      </div>
       {hint && <p className="scenario-description">{hint}</p>}
 
       {sessions.length === 0 ? (
-        <p className="hint">Назначенных прохождений нет.</p>
+        <div className="empty-state">
+          <strong>Прохождений пока нет</strong>
+          <p>
+            Созданные или назначенные вам тренировки появятся в этом списке.
+          </p>
+        </div>
       ) : (
         <ul className="session-rows">
           {sessions.map((session) => (

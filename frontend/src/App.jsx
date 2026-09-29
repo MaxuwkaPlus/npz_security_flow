@@ -1,6 +1,11 @@
 import { useEffect } from "react";
 import { useAuth } from "./hooks/useAuth.js";
-import { ADMIN_PATH, CONSOLE_PATH, navigate, useRoute } from "./hooks/useRoute.js";
+import {
+  ADMIN_PATH,
+  CONSOLE_PATH,
+  navigate,
+  useRoute,
+} from "./hooks/useRoute.js";
 import { useTrainingSession } from "./hooks/useTrainingSession.js";
 import { AdminPage } from "./pages/AdminPage.jsx";
 import { ExpertPage } from "./pages/ExpertPage.jsx";
@@ -8,6 +13,7 @@ import { HomePage } from "./pages/HomePage.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { ReportPage } from "./pages/ReportPage.jsx";
 import { StartPage } from "./pages/StartPage.jsx";
+import { LoadingPage } from "./components/common/LoadingPage.jsx";
 
 /**
  * Два рабочих места на разных адресах.
@@ -90,20 +96,7 @@ function TrainingWorkplace({ auth }) {
         />
       );
     }
-    return (
-      <main className="start-page">
-        <div className="hero">
-          <span className="eyebrow">УЧЕБНЫЙ КОМПЛЕКС</span>
-          <h1>
-            Пульт оператора
-            <br />
-            <em>ЭЛОУ-АВТ</em>
-          </h1>
-          <p>Готовим рабочее место…</p>
-          <div className="hero-line" />
-        </div>
-      </main>
-    );
+    return <LoadingPage />;
   }
 
   // Гость может войти под своей учётной записью, не теряя пульт: отказ от входа
@@ -123,7 +116,8 @@ function TrainingWorkplace({ auth }) {
   }
 
   if (training.screen === "expert") {
-    const leave = () => training.setScreen(training.session ? "console" : "start");
+    const leave = () =>
+      training.setScreen(training.session ? "console" : "start");
     if (!canReview) {
       return (
         <LoginPage
@@ -132,7 +126,8 @@ function TrainingWorkplace({ auth }) {
           error={
             auth.isGuest
               ? auth.error
-              : auth.error || "У этой учётной записи нет доступа к разбору прохождений"
+              : auth.error ||
+                "У этой учётной записи нет доступа к разбору прохождений"
           }
           eyebrow="КАБИНЕТ ЭКСПЕРТА"
           title="Вход эксперта"
@@ -146,7 +141,10 @@ function TrainingWorkplace({ auth }) {
 
   if (training.screen === "report") {
     return (
-      <ReportPage session={training.session} onBack={() => training.setScreen("console")} />
+      <ReportPage
+        session={training.session}
+        onBack={() => training.setScreen("console")}
+      />
     );
   }
 

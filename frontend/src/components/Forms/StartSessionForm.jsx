@@ -9,8 +9,15 @@ const levelCaption = { 1: "обучение", 2: "стандарт", 3: "экс�
  * поля не видит: прохождение подписывается его собственным идентификатором, а
  * подставить чужой всё равно не даст сервер.
  */
-export function StartSessionForm({ scenarios, onStart, operatorId, canChooseOperator }) {
-  const [chosenOperatorId, setChosenOperatorId] = useState(operatorId || "operator-1");
+export function StartSessionForm({
+  scenarios,
+  onStart,
+  operatorId,
+  canChooseOperator,
+}) {
+  const [chosenOperatorId, setChosenOperatorId] = useState(
+    operatorId || "operator-1",
+  );
   const [scenarioId, setScenarioId] = useState("");
   const [levelNo, setLevelNo] = useState(1);
   const selectedScenario =
@@ -32,7 +39,14 @@ export function StartSessionForm({ scenarios, onStart, operatorId, canChooseOper
 
   return (
     <form className="launch-card" onSubmit={submit}>
-      <h2>{canChooseOperator ? "Новое прохождение" : "Начать прохождение"}</h2>
+      <div className="section-heading">
+        <span className="section-number" aria-hidden="true">
+          01
+        </span>
+        <h2>
+          {canChooseOperator ? "Новое прохождение" : "Параметры тренировки"}
+        </h2>
+      </div>
       {canChooseOperator && (
         <label>
           Идентификатор оператора
@@ -64,6 +78,7 @@ export function StartSessionForm({ scenarios, onStart, operatorId, canChooseOper
             <button
               type="button"
               className={levelNo === level ? "selected" : ""}
+              aria-pressed={levelNo === level}
               onClick={() => setLevelNo(level)}
               key={level}
             >
@@ -77,7 +92,8 @@ export function StartSessionForm({ scenarios, onStart, operatorId, canChooseOper
         {selectedScenario?.description || "Загрузка сценариев…"}
       </p>
       <button className="primary launch" disabled={!selectedScenario}>
-        {canChooseOperator ? "Создать сессию" : "К пульту"} <span>→</span>
+        {canChooseOperator ? "Создать сессию" : "Открыть пульт оператора"}{" "}
+        <span aria-hidden="true">→</span>
       </button>
     </form>
   );

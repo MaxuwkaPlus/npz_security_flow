@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { PlatformHeader } from "../components/common/PlatformHeader.jsx";
+import { PlatformFooter } from "../components/common/PlatformFooter.jsx";
+import { PageHeading } from "../components/common/PageHeading.jsx";
 
 const DEFAULT_LEAD =
   "Доступ разграничен по ролям: обучаемый проходит сценарии, инструктор ведёт " +
@@ -28,53 +31,59 @@ export function LoginPage({
   };
 
   return (
-    <main className="start-page">
-      <div className="hero">
-        <span className="eyebrow">{eyebrow}</span>
-        <h1>
-          Пульт оператора
-          <br />
-          <em>ЭЛОУ-АВТ</em>
-        </h1>
-        <p>{lead}</p>
-        <div className="hero-line" />
-        {onBack && (
-          <div className="hero-links">
-            <button className="expert-link" onClick={onBack}>
-              {backLabel}
+    <div className="platform-shell">
+      <PlatformHeader section="Вход в учебный комплекс">
+        {onBack && <button onClick={onBack}>{backLabel}</button>}
+      </PlatformHeader>
+      <main className="page-content">
+        <PageHeading section={eyebrow} title={title} description={lead} />
+        <div className="login-layout">
+          <form className="launch-card" onSubmit={submit}>
+            <h2>Учётные данные</h2>
+            <label>
+              Учётная запись
+              <input
+                value={username}
+                maxLength="64"
+                autoComplete="username"
+                onChange={(event) => setUsername(event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Пароль
+              <input
+                type="password"
+                value={password}
+                maxLength="256"
+                autoComplete="current-password"
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </label>
+            {error && (
+              <p className="banner negative" role="alert">
+                {error}
+              </p>
+            )}
+            <button className="primary launch" disabled={busy}>
+              {busy ? "Проверка…" : "Войти"} <span>→</span>
             </button>
-          </div>
-        )}
-      </div>
-
-      <form className="launch-card" onSubmit={submit}>
-        <h2>{title}</h2>
-        <label>
-          Учётная запись
-          <input
-            value={username}
-            maxLength="64"
-            autoComplete="username"
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Пароль
-          <input
-            type="password"
-            value={password}
-            maxLength="256"
-            autoComplete="current-password"
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </label>
-        {error && <p className="banner negative">{error}</p>}
-        <button className="primary launch" disabled={busy}>
-          {busy ? "Проверка…" : "Войти"} <span>→</span>
-        </button>
-      </form>
-    </main>
+          </form>
+          <aside className="login-guidance">
+            <h2>Доступ к рабочему месту</h2>
+            <p>
+              Используйте учётную запись, выданную администратором. Доступные
+              разделы определяются вашей ролью.
+            </p>
+            <p>
+              Для самостоятельной тренировки вернитесь к пульту. Гостевой режим
+              доступен, если он включён в настройках комплекса.
+            </p>
+          </aside>
+        </div>
+      </main>
+      <PlatformFooter />
+    </div>
   );
 }
