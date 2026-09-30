@@ -1,0 +1,367 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Техническо-экономический разбор NPZ Security Flow",
+    "description": "Архитектура, зрелость, серверные ресурсы, команда и модель бюджета для MVP тренажёра ЭЛОУ-АВТ.",
+    "generatedAt": "2026-08-24T20:14:11+03:00",
+    "cards": [
+      {
+        "id": "card-tests",
+        "description": "Полный backend-набор прошёл без ошибок; frontend имеет только проверку production-сборки.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-verification",
+        "metrics": [
+          {"label": "Backend-тесты", "field": "backend_tests", "format": "number"}
+        ]
+      },
+      {
+        "id": "card-throughput",
+        "description": "Повторный локальный замер на Apple M4: 20 сессий, 600 тиков, файловая SQLite.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-loadtest",
+        "metrics": [
+          {"label": "Измерено тиков/с", "field": "measured_ticks_per_s", "format": "number"}
+        ]
+      },
+      {
+        "id": "card-storage",
+        "description": "Плановый диапазон на одно завершённое 65-минутное прохождение с индексами и событиями.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-storage",
+        "metrics": [
+          {"label": "Хранение на сессию", "field": "storage_per_session"}
+        ]
+      },
+      {
+        "id": "card-effort",
+        "description": "Оценка доведения текущего MVP до управляемого пилота без интеграции с реальной АСУ ТП.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-estimate",
+        "metrics": [
+          {"label": "Трудоёмкость пилота", "field": "pilot_person_months"}
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "chart-capacity",
+        "title": "Спрос на тики и измеренная пропускная способность",
+        "subtitle": "Тики в секунду; замер — текущая Apple M4-среда, рабочий бюджет ограничен примерно 55% измеренного пика",
+        "showDescription": true,
+        "question": "Какие сочетания числа сессий и ускорения помещаются в текущую однопроцессную архитектуру?",
+        "rationale": "Горизонтальные столбцы напрямую сравнивают одну и ту же единицу — тики в секунду — для сценариев спроса и измеренной мощности.",
+        "type": "bar",
+        "dataset": "capacity_scenarios",
+        "sourceId": "src-capacity",
+        "encodings": {
+          "x": {"field": "scenario", "type": "nominal", "label": "Сценарий"},
+          "y": {"field": "ticks_per_s", "type": "quantitative", "aggregate": "none", "label": "Тики/с"},
+          "tooltip": [
+            {"field": "concurrent_sessions", "type": "quantitative", "label": "Сессии"},
+            {"field": "speed_factor", "type": "quantitative", "label": "Ускорение"},
+            {"field": "interpretation", "type": "text", "label": "Интерпретация"}
+          ]
+        },
+        "xAxisTitle": "Сценарий",
+        "yAxisTitle": "Тики в секунду",
+        "valueFormat": "number",
+        "unit": "тиков/с",
+        "layout": "full",
+        "maxRows": 8,
+        "surface": {"showLegend": false, "showValueLabels": true}
+      }
+    ],
+    "tables": [
+      {
+        "id": "table-stack",
+        "title": "Фактический программный стек",
+        "subtitle": "Версии взяты из установленных lock-окружений и production-сборки на 24 августа 2026 года",
+        "showDescription": true,
+        "dataset": "technology_stack",
+        "defaultSort": {"field": "layer", "direction": "asc"},
+        "density": "spacious",
+        "sourceId": "src-repository",
+        "layout": "full",
+        "columns": [
+          {"field": "layer", "label": "Слой", "type": "text"},
+          {"field": "software", "label": "ПО и технологии", "type": "text"},
+          {"field": "role", "label": "Назначение", "type": "text"},
+          {"field": "readiness", "label": "Состояние", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-servers",
+        "title": "Сценарии серверной конфигурации",
+        "subtitle": "Расчётные минимумы и рекомендуемые конфигурации; до SLA требуется повторный нагрузочный тест на целевом железе",
+        "showDescription": true,
+        "dataset": "server_profiles",
+        "defaultSort": {"field": "vcpu", "direction": "asc"},
+        "density": "spacious",
+        "sourceId": "src-capacity",
+        "layout": "full",
+        "columns": [
+          {"field": "profile", "label": "Контур", "type": "text"},
+          {"field": "load", "label": "Нагрузка", "type": "text"},
+          {"field": "vcpu", "label": "vCPU", "format": "number"},
+          {"field": "ram", "label": "RAM", "type": "text"},
+          {"field": "disk", "label": "SSD", "type": "text"},
+          {"field": "accelerator", "label": "Ускоритель", "type": "text"},
+          {"field": "comment", "label": "Комментарий", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-storage",
+        "title": "Годовой объём данных прохождений",
+        "subtitle": "Диапазон 3–5 МБ на сессию; резерв 4× включает рабочую копию, backup-копии и операционный запас",
+        "showDescription": true,
+        "dataset": "storage_scenarios",
+        "defaultSort": {"field": "sessions_per_year", "direction": "asc"},
+        "density": "spacious",
+        "sourceId": "src-storage",
+        "layout": "full",
+        "columns": [
+          {"field": "sessions_per_year", "label": "Сессий/год", "format": "number"},
+          {"field": "primary_storage", "label": "Основная БД", "type": "text"},
+          {"field": "budget_storage", "label": "Бюджет с копиями", "type": "text"},
+          {"field": "operational_note", "label": "Эксплуатационный вывод", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-team",
+        "title": "Команда для доведения MVP до пилота",
+        "subtitle": "Средняя занятость на горизонте 4–6 месяцев; один человек может закрывать несколько неполных ролей",
+        "showDescription": true,
+        "dataset": "pilot_team",
+        "defaultSort": {"field": "fte", "direction": "desc"},
+        "density": "spacious",
+        "sourceId": "src-estimate",
+        "layout": "full",
+        "columns": [
+          {"field": "role", "label": "Роль", "type": "text"},
+          {"field": "fte", "label": "Средний FTE", "format": "number"},
+          {"field": "responsibility", "label": "Зона ответственности", "type": "text"},
+          {"field": "mandatory", "label": "Статус", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-economics",
+        "title": "Входы для финансовой модели",
+        "subtitle": "Точные рубли нельзя считать до фиксации этих внутренних параметров",
+        "showDescription": true,
+        "dataset": "economic_inputs",
+        "defaultSort": {"field": "order", "direction": "asc"},
+        "density": "spacious",
+        "sourceId": "src-estimate",
+        "layout": "full",
+        "columns": [
+          {"field": "order", "label": "Шаг", "format": "number"},
+          {"field": "input", "label": "Параметр", "type": "text"},
+          {"field": "owner", "label": "Кто даёт значение", "type": "text"},
+          {"field": "use", "label": "Куда входит", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-risks",
+        "title": "Разрывы до сетевого пилота",
+        "subtitle": "Приоритет учитывает безопасность, непрерывность прохождения и стоимость позднего исправления",
+        "showDescription": true,
+        "dataset": "risk_register",
+        "defaultSort": {"field": "priority", "direction": "asc"},
+        "density": "spacious",
+        "sourceId": "src-audit",
+        "layout": "full",
+        "columns": [
+          {"field": "priority", "label": "Приоритет", "type": "text"},
+          {"field": "gap", "label": "Разрыв", "type": "text"},
+          {"field": "impact", "label": "Экономический/операционный эффект", "type": "text"},
+          {"field": "required_action", "label": "Что сделать", "type": "text"}
+        ]
+      }
+    ],
+    "sources": [
+      {"id": "src-repository", "label": "Репозиторий NPZ Security Flow: исходники, lock-файлы и документация", "path": "reports/project_analysis/evidence.sql"},
+      {"id": "src-spec", "label": "docs/BACKEND_PROJECT_SPEC.md — источник требований backend", "path": "docs/BACKEND_PROJECT_SPEC.md"},
+      {"id": "src-scenario", "label": "docs/TRAINER_SCENARIO.md — предметный сценарий ЭЛОУ-АВТ", "path": "docs/TRAINER_SCENARIO.md"},
+      {"id": "src-verification", "label": "Результаты локальных проверок проекта от 24 августа 2026 года", "path": "reports/project_analysis/evidence.sql"},
+      {"id": "src-loadtest", "label": "backend/tests/e2e/test_concurrent_sessions.py — локальный нагрузочный прогон", "path": "reports/project_analysis/evidence.sql"},
+      {"id": "src-capacity", "label": "Расчётная модель мощности на основе измеренного тика", "path": "reports/project_analysis/evidence.sql"},
+      {"id": "src-storage", "label": "Агрегаты локальной SQLite и расчёт хранения", "path": "reports/project_analysis/evidence.sql"},
+      {"id": "src-estimate", "label": "Оценочная модель команды и экономики текущего scope", "path": "reports/project_analysis/evidence.sql"},
+      {"id": "src-audit", "label": "Архитектурный и security-аудит текущего рабочего дерева", "path": "reports/project_analysis/evidence.sql"}
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Техническо-экономический разбор NPZ Security Flow",
+        "layout": "full"
+      },
+      {
+        "id": "executive-summary",
+        "type": "markdown",
+        "body": "## Executive Summary\n\n- **Проект уже является работающим MVP, а не макетом.** Backend детерминированно моделирует 65-минутный сценарий, ведёт аудит, RBAC, REST/WebSocket, scoring и отчётность; React-интерфейс и отдельный сервис рекомендаций также реализованы.\n- **Для пилота без локальной LLM разумная стартовая конфигурация — 4 vCPU, 4–8 ГБ RAM и 40 ГБ NVMe.** Она рассчитана на до 20 одновременных сессий в реальном времени; это направление подтверждено локальным тестом, но ещё не является SLA целевой VM.\n- **Локальная Qwen3-4B — отдельная опция, а не обязательная часть тренажёра.** Для совместного контура планируйте 8 vCPU, 16 ГБ RAM и 50 ГБ SSD либо отдельный inference-узел с не менее 8 ГБ VRAM. Без неё рекомендации работают на детерминированных шаблонах.\n- **До сетевого пилота нужны 30–45 человеко-месяцев, в среднем 7–8 FTE на 4–6 месяцев.** Главные статьи — подтверждение технологом и методистом, закрытие security/восстановления, frontend QA и эксплуатационная упаковка. Денежный бюджет считается умножением этого объёма на внутренние fully-loaded ставки.",
+        "layout": "full"
+      },
+      {
+        "id": "headline-strip",
+        "type": "metric-strip",
+        "cardIds": ["card-tests", "card-throughput", "card-storage", "card-effort"],
+        "layout": "full"
+      },
+      {
+        "id": "product-shape",
+        "type": "markdown",
+        "body": "## Ядро готово к демонстрации, но продукт состоит из двух разных контуров\n\n**Обязательное ядро** — React-пульт, FastAPI backend, WebSocket и основная SQLite. Оно полностью работает без ML и LLM, что соответствует технической спецификации. Backend — единственный источник состояния: клиент не считает технологию, тревоги или баллы.\n\n**Расширенный контур** — отдельный FastAPI-сервис рекомендаций. Несмотря на название каталога `ml`, обученной модели в нём нет: навыки и следующий сценарий выбираются детерминированными правилами на pandas/SQLite. Qwen3-4B через llama.cpp лишь переписывает уже рассчитанные факты в текст для эксперта и имеет шаблонный fallback.\n\nЭто разделение полезно для экономики: базовый тренажёр можно внедрять без расходов на inference, а LLM считать отдельной опцией после проверки ценности.",
+        "layout": "full"
+      },
+      {"id": "stack-table-block", "type": "table", "tableId": "table-stack", "layout": "full"},
+      {
+        "id": "capacity-finding",
+        "type": "markdown",
+        "body": "## Двадцать сессий в реальном времени укладываются, массовое ускорение — нет\n\nЛокальный тест на Apple M4 повторно показал **56 тиков/с** при 20 сессиях и общей файловой SQLite. Для 20 сессий при коэффициенте скорости ×1 нужно 20 тиков/с; это около 36% измеренного пика. Для планирования используется консервативный рабочий бюджет около 30 тиков/с.\n\nНагрузка растёт линейно: `сессии × коэффициент ускорения`. Три сессии ×10 уже требуют весь рабочий бюджет, пять сессий ×10 почти достигают измеренного максимума, а 20 сессий ×10 потребовали бы 200 тиков/с — примерно в 3,6 раза больше текущего результата. Поэтому ускорение ×10 подходит для единичной демонстрации, но не для массового класса на одном SQLite-инстансе.",
+        "layout": "full"
+      },
+      {"id": "capacity-chart-block", "type": "chart", "chartId": "chart-capacity", "layout": "full"},
+      {
+        "id": "server-guidance",
+        "type": "markdown",
+        "body": "## Сервер лучше закладывать по контурам, а не одной общей цифрой\n\n**Frontend после сборки — статические файлы:** около 256 КБ JavaScript и 20 КБ CSS до gzip, поэтому отдельный Node-процесс в production не нужен. Его можно отдавать тем же reverse proxy.\n\n**Backend и rule-based ML потребляют мало памяти:** холодный импорт в текущем окружении показал пиково около 146 МБ и 95 МБ соответственно. Но один scrypt-вход требует примерно 64 МБ временной памяти, а операционная система, backup, мониторинг и WAL требуют запаса.\n\n**LLM определяет верхнюю границу:** GGUF-файл занимает 2,50 ГБ, документация проекта оценивает рабочую память примерно в 3,5 ГБ. Для устойчивой совместной работы 16 ГБ RAM безопаснее, чем попытка вместить всё в 8 ГБ.",
+        "layout": "full"
+      },
+      {"id": "servers-table-block", "type": "table", "tableId": "table-servers", "layout": "full"},
+      {
+        "id": "storage-finding",
+        "type": "markdown",
+        "body": "## Хранение невелико, но retention и backup должны появиться до пилота\n\nСценарий длится максимум 3 900 секунд, snapshot сохраняется каждые 5 секунд — до 780 снимков. В текущей БД один снимок содержит в среднем около 3,1 КБ JSON; это примерно 2,4 МБ сырого snapshot-содержимого на максимальную сессию. С учётом событий, отчёта, индексов и запаса для бюджета берётся **3–5 МБ на завершённую сессию**.\n\nSQLite-файл нельзя оценивать только по полезным JSON-байтам: нужны online-backup с учётом WAL, проверка восстановления и свободное место для миграций. Практический бюджет диска — минимум четыре объёма годового прироста плюс ОС, логи и модель.",
+        "layout": "full"
+      },
+      {"id": "storage-table-block", "type": "table", "tableId": "table-storage", "layout": "full"},
+      {
+        "id": "team-finding",
+        "type": "markdown",
+        "body": "## Пилот требует 7–8 FTE, и технолог важнее дополнительного ML-разработчика\n\nНа горизонте 4–6 месяцев нужен состав примерно **7,3 обязательного FTE** и 0,5–1,0 опционального ML/LLM FTE. Это 9–11 названных людей, потому что DevOps, security, UX и методические рецензенты могут быть заняты неполный день. Совокупная трудоёмкость — ориентировочно **30–45 человеко-месяцев**, ещё 4–8 человеко-месяцев при включении ML/LLM в обязательный промышленный контур.\n\nГлавная зависимость не техническая: пороги, безопасные действия, штрафы и нормативные времена в конфигурации помечены provisional. Без подписанного решения технолога, методиста и промышленной безопасности продукт остаётся учебной демонстрацией и не должен использоваться для реальной аттестации.",
+        "layout": "full"
+      },
+      {"id": "team-table-block", "type": "table", "tableId": "table-team", "layout": "full"},
+      {
+        "id": "economics-model",
+        "type": "markdown",
+        "body": "## Экономику лучше считать через человеко-месяцы и стоимость одной сессии\n\nБазовые формулы:\n\n- `CAPEX разработки = Σ(FTE роли × месяцев × fully-loaded ставка роли)`\n- `Годовой OPEX = инфраструктура + backup/monitoring + поддержка + обновление сценариев + security/аудит + inference`\n- `Стоимость сессии = (годовой OPEX + амортизированный CAPEX) / число завершённых сессий`\n- `Годовой эффект = сэкономленные часы инструктора + сокращение времени подготовки + подтверждённое снижение риска`\n- `Срок окупаемости, мес. = CAPEX / (месячный эффект − месячный OPEX)`\n\nFully-loaded ставка должна включать не только зарплату, но и начисления работодателя, рабочее место, управление, найм и оплачиваемые простои. Эффект от предотвращённых инцидентов нельзя придумывать: в модель входит только согласованная с производством вероятность и стоимость события.",
+        "layout": "full"
+      },
+      {"id": "economics-table-block", "type": "table", "tableId": "table-economics", "layout": "full"},
+      {
+        "id": "risk-finding",
+        "type": "markdown",
+        "body": "## Основные расходы пилота создают не серверы, а четыре разрыва продукта\n\nПервый приоритет — исключить секреты из `Start.md` и закрыть ML API настоящей backend-аутентификацией. Сейчас ML OpenAPI не содержит security scheme, а `expert_id` приходит от клиента: сеть не может доверять такому утверждению.\n\nВторой приоритет — восстановление после перезапуска. Состояние процесса хранится в БД, но startup-код не перезапускает runtime-задачи для сессий со статусом `running`; ручка `resume` для них также недопустима. Это риск потери учебного времени и неконсистентного статуса.\n\nТретий блок — эксплуатация: нет CI, контейнеризации, reverse proxy/TLS, метрик, backup/restore runbook и frontend-тестов. Четвёртый — предметная валидация provisional-значений. Эти работы и формируют большую часть 30–45 человеко-месяцев.",
+        "layout": "full"
+      },
+      {"id": "risks-table-block", "type": "table", "tableId": "table-risks", "layout": "full"},
+      {
+        "id": "next-steps",
+        "type": "markdown",
+        "body": "## Рекомендуемые следующие шаги\n\n1. **За 1–2 недели закрыть P0:** сменить и убрать опубликованные пароли, добавить secret scanning, аутентифицировать ML API и привязать решение эксперта к server-side principal.\n2. **За следующий спринт обеспечить непрерывность:** автоматическое восстановление running-сессий, online-backup SQLite/WAL, проверенный restore, TLS/WSS и отключённый по умолчанию guest-режим для именного контура.\n3. **За 1–2 месяца упаковать пилот:** CI, воспроизводимый deploy, метрики/алерты, frontend-тесты, нагрузка REST+WS на целевой VM и политика retention.\n4. **Параллельно провести предметную приёмку:** технолог, методист и промышленная безопасность подписывают пороги, действия, SAGAT, scoring и тексты отчёта.\n5. **Только после пилота решать судьбу LLM/ML:** сравнить шаблонные и LLM-тексты, измерить время эксперта и качество рекомендаций; обучаемую модель не включать без достаточных реальных обезличенных данных.",
+        "layout": "full"
+      },
+      {
+        "id": "further-questions",
+        "type": "markdown",
+        "body": "## Какие вопросы нужны для денежной сметы\n\n- Сколько площадок, операторов, сессий в месяц и какой реальный пик одновременности?\n- Нужны ли ускоренные групповые прохождения, или ускорение используется только на демонстрации?\n- Какой SLA, допустимое время простоя и срок хранения результатов?\n- Контур on-premise или облачный; допустима ли внешняя LLM, либо модель должна оставаться локальной?\n- Нужна ли именная аттестация и какие требования к персональным данным?\n- Кто утверждает методические значения и сколько новых сценариев планируется в год?\n- Каковы внутренние fully-loaded ставки ролей, стоимость часа инструктора и подтверждённый бизнес-эффект обучения?",
+        "layout": "full"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "body": "## Допущения и ограничения\n\n- Анализ отражает рабочее дерево на 24 августа 2026 года; продуктовый код не изменялся. Пользовательское изменение `Start.md` сохранено.\n- Нагрузочный результат получен на текущей Apple M4-среде и не переносится автоматически на Linux VM или сервер x86. Нужен повтор на целевом железе с реальными WebSocket-клиентами.\n- Ресурсы LLM взяты из локального файла модели и документации проекта; latency и многопользовательская генерация не измерялись.\n- Серверные конфигурации — capacity-planning, не подтверждённый SLA. Горизонтальное масштабирование текущего backend ограничено SQLite и in-memory WebSocket hub.\n- Денежные ставки, налоги, облачные цены и стоимость оборудования не оценивались: регион, валюта, режим закупки и внутренние ставки не заданы.\n- Проект не является точным физико-химическим симулятором, не подключён к АСУ ТП и не готов к промышленной аттестации без предметной и security-приёмки.",
+        "layout": "full"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-24T20:14:11+03:00",
+    "status": "ready",
+    "datasets": {
+      "headline_metrics": [
+        {
+          "backend_tests": 332,
+          "measured_ticks_per_s": 56,
+          "storage_per_session": "3–5 МБ",
+          "pilot_person_months": "30–45 чел.-мес."
+        }
+      ],
+      "technology_stack": [
+        {"layer": "1. Backend API", "software": "Python 3.12+ (локально 3.13.3), FastAPI 0.141.1, Uvicorn 0.52.1, Pydantic 2.13.4", "role": "REST /api/v1, WebSocket /ws/v1, бизнес-use-cases", "readiness": "Реализовано и типизировано"},
+        {"layer": "2. Домен", "software": "Чистый Python, dataclass/Enum, детерминированный digital twin", "role": "Тики, динамика, тревоги, стадии, scoring, RBAC", "readiness": "Не зависит от FastAPI/ORM"},
+        {"layer": "3. Хранение", "software": "SQLAlchemy 2.0.51 async, aiosqlite 0.22.1, Alembic 1.19.1, SQLite WAL", "role": "31 таблица, события, snapshots, версии, аудит", "readiness": "Один инстанс; без HA"},
+        {"layer": "4. Frontend", "software": "React 19.2.8, React DOM 19.2.8, Vite 8.2.1, JavaScript/JSX/CSS", "role": "Пульт, отчёт, кабинеты эксперта и ИБ", "readiness": "Сборка есть; автотестов и type-check нет"},
+        {"layer": "5. Рекомендации", "software": "Python, FastAPI 0.141.1, pandas 3.0.5, httpx 0.28.1, sqlite3", "role": "Правила навыков, mining, очередь предложений", "readiness": "Rule-based; не обученная ML-модель"},
+        {"layer": "6. LLM, опция", "software": "llama.cpp/ggml 0.11.0, Qwen3-4B-Instruct-2507 Q4_K_M", "role": "Только формулировка текста для эксперта", "readiness": "2,50 ГБ GGUF; есть шаблонный fallback"},
+        {"layer": "7. Качество", "software": "pytest, Ruff, mypy strict; npm build", "role": "332 backend-теста, 37 ML-тестов, production-сборка UI", "readiness": "Сильный backend; frontend coverage отсутствует"},
+        {"layer": "8. Эксплуатация", "software": "Локальные команды uv/npm; JSON-логи; health/ready", "role": "Запуск и диагностика", "readiness": "Нет CI, контейнеров, TLS-proxy, метрик и backup runbook"}
+      ],
+      "capacity_scenarios": [
+        {"scenario": "20 сессий ×1", "ticks_per_s": 20, "concurrent_sessions": 20, "speed_factor": 1, "kind": "demand", "interpretation": "Проектная цель real-time; ниже рабочего бюджета"},
+        {"scenario": "Рабочий бюджет", "ticks_per_s": 30, "concurrent_sessions": null, "speed_factor": null, "kind": "planning", "interpretation": "Около 55% локального измеренного пика"},
+        {"scenario": "3 сессии ×10", "ticks_per_s": 30, "concurrent_sessions": 3, "speed_factor": 10, "kind": "demand", "interpretation": "Практический предел рабочего бюджета"},
+        {"scenario": "5 сессий ×10", "ticks_per_s": 50, "concurrent_sessions": 5, "speed_factor": 10, "kind": "demand", "interpretation": "Почти весь локально измеренный пик"},
+        {"scenario": "Измеренный максимум", "ticks_per_s": 56, "concurrent_sessions": 20, "speed_factor": 300, "kind": "measured", "interpretation": "600 тиков за 10,7 с на Apple M4; не SLA"}
+      ],
+      "server_profiles": [
+        {"profile": "Демо: ядро", "load": "1–3 сессии; ×1–×10, не одновременно на верхних границах", "vcpu": 2, "ram": "2 ГБ", "disk": "20 ГБ SSD", "accelerator": "Нет", "comment": "Backend + static frontend; без LLM"},
+        {"profile": "Пилот: ядро + правила", "load": "До 20 сессий ×1", "vcpu": 4, "ram": "4–8 ГБ", "disk": "40 ГБ NVMe", "accelerator": "Нет", "comment": "Рекомендуемый старт; повторить нагрузку на целевой VM"},
+        {"profile": "Пилот: локальная LLM", "load": "До 20 core-сессий ×1; 1–2 генерации текста", "vcpu": 8, "ram": "16 ГБ", "disk": "50 ГБ SSD", "accelerator": "Опционально ≥8 ГБ VRAM", "comment": "Лучше отделить llama-server при росте конкуренции"},
+        {"profile": "Массовое ускорение / HA", "load": ">3 сессий ×10 или несколько backend-инстансов", "vcpu": 8, "ram": "16+ ГБ", "disk": "По retention", "accelerator": "По LLM", "comment": "Требует изменения архитектуры: не решается только увеличением VM"}
+      ],
+      "storage_scenarios": [
+        {"sessions_per_year": 100, "primary_storage": "0,3–0,5 ГБ/год", "budget_storage": "1,2–2 ГБ/год", "operational_note": "Вмещается с большим запасом в демо-контур"},
+        {"sessions_per_year": 1000, "primary_storage": "3–5 ГБ/год", "budget_storage": "12–20 ГБ/год", "operational_note": "40 ГБ SSD достаточно для первого года пилота"},
+        {"sessions_per_year": 10000, "primary_storage": "30–50 ГБ/год", "budget_storage": "120–200 ГБ/год", "operational_note": "Нужны retention, архивирование и решение о смене SQLite"}
+      ],
+      "pilot_team": [
+        {"role": "Backend-инженеры", "fte": 2.0, "responsibility": "Recovery, ML auth, API/WS, persistence, observability, performance", "mandatory": "Обязательно"},
+        {"role": "Инженер-технолог ЭЛОУ-АВТ", "fte": 1.0, "responsibility": "Пороги, причинность, безопасные действия, регламентная приёмка", "mandatory": "Критически обязательно"},
+        {"role": "Frontend-инженер", "fte": 1.0, "responsibility": "Пульт, кабинеты, accessibility, error states, тесты", "mandatory": "Обязательно"},
+        {"role": "QA automation", "fte": 1.0, "responsibility": "Frontend/API/E2E, нагрузка, recovery, регрессия сценариев", "mandatory": "Обязательно"},
+        {"role": "Product/Project manager", "fte": 0.5, "responsibility": "Scope, пилот, KPI, решения заказчика и экономика", "mandatory": "Обязательно"},
+        {"role": "Методист / human factors", "fte": 0.5, "responsibility": "SAGAT, NASA-TLX, scoring, учебная валидность отчёта", "mandatory": "Обязательно"},
+        {"role": "DevOps/SRE", "fte": 0.5, "responsibility": "Deploy, TLS, backup, monitoring, runbook, capacity", "mandatory": "Обязательно"},
+        {"role": "AppSec / ИБ", "fte": 0.5, "responsibility": "Threat model, secret handling, RBAC, журнал, hardening", "mandatory": "Обязательно"},
+        {"role": "UX/UI", "fte": 0.3, "responsibility": "Мнемосхема, тревоги, когнитивная нагрузка, usability", "mandatory": "Желательно"},
+        {"role": "ML/LLM-инженер", "fte": 0.8, "responsibility": "Оценка рекомендаций, inference, guardrails, latency/cost", "mandatory": "Опция: 0,5–1,0 FTE"}
+      ],
+      "economic_inputs": [
+        {"order": 1, "input": "Площадки, обучаемые, сессии/месяц, пик одновременности", "owner": "Product owner + учебный центр", "use": "Инфраструктура, стоимость сессии, масштаб эффекта"},
+        {"order": 2, "input": "Fully-loaded ставки по ролям и доступность экспертов", "owner": "Finance + HR + подрядчики", "use": "CAPEX разработки и ежегодная поддержка"},
+        {"order": 3, "input": "On-prem/cloud, закупка сервера, срок амортизации", "owner": "IT + закупки + Finance", "use": "Инфраструктурный CAPEX/OPEX"},
+        {"order": 4, "input": "SLA, окно поддержки, backup, retention, RTO/RPO", "owner": "IT/SRE + ИБ + владелец процесса", "use": "Штат сопровождения и резервирование"},
+        {"order": 5, "input": "Число сценариев и трудоёмкость их экспертной приёмки", "owner": "Технолог + методист", "use": "Контентный CAPEX и ежегодное обновление"},
+        {"order": 6, "input": "Local LLM, GPU или внешний inference", "owner": "Архитектор + ИБ + Finance", "use": "Опциональный compute/OPEX и риски данных"},
+        {"order": 7, "input": "Часы инструктора до/после, время подготовки, показатели безопасности", "owner": "Учебный центр + производство + HSE", "use": "Benefit, ROI, payback; только подтверждённые значения"}
+      ],
+      "risk_register": [
+        {"priority": "P0", "gap": "Пять паролей записаны в пользовательском изменении Start.md", "impact": "Компрометация стенда, аварийная смена учётных данных, риск попадания в историю/архив", "required_action": "Немедленно сменить, удалить из документа, включить secret scanning; не коммитить"},
+        {"priority": "P0", "gap": "ML API не имеет аутентификации; expert_id задаёт клиент", "impact": "Несанкционированный просмотр профилей и подмена решений эксперта", "required_action": "Использовать backend principal/RBAC, server-side expert identity и единый audit"},
+        {"priority": "P1", "gap": "Running-сессии не восстанавливаются автоматически после рестарта", "impact": "Потеря времени обучения, зависшие статусы, ручное вмешательство", "required_action": "Startup recovery, lease/owner, recovery-тест и runbook"},
+        {"priority": "P1", "gap": "Нет CI/deploy/TLS/metrics/backup-restore контура", "impact": "Высокая стоимость релиза и диагностики, неизвестные RTO/RPO", "required_action": "Воспроизводимый deploy, reverse proxy, monitoring, online backup и restore drill"},
+        {"priority": "P1", "gap": "Технологические и методические значения provisional", "impact": "Нельзя обосновать безопасность и использовать для аттестации", "required_action": "Формальная приёмка технологом, методистом и промышленной безопасностью"},
+        {"priority": "P1", "gap": "Frontend без автотестов, lint и type-check; зависимости declared as latest", "impact": "Регрессии UI и непредсказуемые обновления сборки", "required_action": "Зафиксировать engines/версии, добавить lint, component/E2E и accessibility tests"},
+        {"priority": "P2", "gap": "SQLite + in-memory hub ограничивают HA и multi-instance", "impact": "Вертикальный потолок и сложная отказоустойчивость", "required_action": "Оставить для пилота; менять хранилище только после подтверждённого SLA/масштаба"},
+        {"priority": "P2", "gap": "ML-каталог — правила на 36 синтетических сессиях, а не обученная модель", "impact": "Нельзя обещать predictive ML и производственную обобщаемость", "required_action": "Позиционировать как explainable baseline; собирать обезличенные данные и валидировать отдельно"}
+      ]
+    }
+  },
+  "sources": [
+    {"id": "src-repository", "label": "Репозиторий NPZ Security Flow: исходники, lock-файлы и документация", "path": "reports/project_analysis/evidence.sql"},
+    {"id": "src-spec", "label": "docs/BACKEND_PROJECT_SPEC.md — источник требований backend", "path": "docs/BACKEND_PROJECT_SPEC.md"},
+    {"id": "src-scenario", "label": "docs/TRAINER_SCENARIO.md — предметный сценарий ЭЛОУ-АВТ", "path": "docs/TRAINER_SCENARIO.md"},
+    {"id": "src-verification", "label": "Результаты локальных проверок проекта от 24 августа 2026 года", "path": "reports/project_analysis/evidence.sql"},
+    {"id": "src-loadtest", "label": "backend/tests/e2e/test_concurrent_sessions.py — локальный нагрузочный прогон", "path": "reports/project_analysis/evidence.sql"},
+    {"id": "src-capacity", "label": "Расчётная модель мощности на основе измеренного тика", "path": "reports/project_analysis/evidence.sql"},
+    {"id": "src-storage", "label": "Агрегаты локальной SQLite и расчёт хранения", "path": "reports/project_analysis/evidence.sql"},
+    {"id": "src-estimate", "label": "Оценочная модель команды и экономики текущего scope", "path": "reports/project_analysis/evidence.sql"},
+    {"id": "src-audit", "label": "Архитектурный и security-аудит текущего рабочего дерева", "path": "reports/project_analysis/evidence.sql"}
+  ]
+}

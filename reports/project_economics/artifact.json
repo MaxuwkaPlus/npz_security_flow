@@ -1,0 +1,791 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Бюджет пилота NPZ Security Flow",
+    "description": "ПО, инфраструктура, команда, ФОТ и ежегодные расходы для пилота тренажёра ЭЛОУ-АВТ.",
+    "generatedAt": "2026-08-24T23:30:00+03:00",
+    "cards": [
+      {
+        "id": "card-team",
+        "description": "Средняя одновременная загрузка обязательной команды на горизонте пяти месяцев.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-model",
+        "metrics": [
+          {
+            "label": "Команда пилота",
+            "field": "pilot_fte",
+            "format": "number",
+            "unit": "FTE"
+          }
+        ]
+      },
+      {
+        "id": "card-effort",
+        "description": "Трудоёмкость базового сценария; соответствует ранее оценённому диапазону 30–45 человеко-месяцев.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-model",
+        "metrics": [
+          {
+            "label": "Трудоёмкость",
+            "field": "pilot_person_months",
+            "format": "number",
+            "unit": "чел.-мес."
+          }
+        ]
+      },
+      {
+        "id": "card-fot",
+        "description": "Зарплата до НДФЛ, страховые взносы 30% и организационные накладные 10%.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-model",
+        "metrics": [
+          {
+            "label": "Базовый fully-loaded ФОТ",
+            "field": "base_fot_rub",
+            "format": "number",
+            "unit": "₽"
+          }
+        ]
+      },
+      {
+        "id": "card-budget",
+        "description": "Базовый ФОТ, резерв 15%, инфраструктура пилота и GitHub Team на пять месяцев; без оборудования и внешнего аудита.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-model",
+        "metrics": [
+          {
+            "label": "Ориентир бюджетной заявки",
+            "field": "funding_request_rub",
+            "format": "number",
+            "unit": "₽"
+          }
+        ]
+      },
+      {
+        "id": "card-opex",
+        "description": "Команда сопровождения 1,6 FTE, три небольшие VM и GitHub Team; без новых сценариев и ML/LLM.",
+        "dataset": "headline_metrics",
+        "sourceId": "src-model",
+        "metrics": [
+          {
+            "label": "Базовый OPEX после запуска",
+            "field": "annual_core_opex_rub",
+            "format": "number",
+            "unit": "₽/год"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "chart-role-costs",
+        "title": "Fully-loaded ФОТ по ролям",
+        "subtitle": "Базовые месячные оклады, средний FTE и горизонт 5 месяцев; рубли",
+        "showDescription": true,
+        "question": "Какие роли формируют бюджет команды пилота?",
+        "rationale": "Столбцы позволяют сравнить одну и ту же денежную меру по десяти ролям; точные ставки и FTE остаются в соседней таблице.",
+        "type": "bar",
+        "dataset": "role_costs",
+        "sourceId": "src-model",
+        "encodings": {
+          "x": {
+            "field": "role_short",
+            "type": "nominal",
+            "label": "Роль"
+          },
+          "y": {
+            "field": "loaded_cost_base_rub",
+            "type": "quantitative",
+            "aggregate": "none",
+            "label": "Fully-loaded ФОТ, ₽"
+          },
+          "tooltip": [
+            {
+              "field": "fte",
+              "type": "quantitative",
+              "label": "Средний FTE"
+            },
+            {
+              "field": "monthly_salary_base_rub",
+              "type": "quantitative",
+              "label": "Базовый оклад, ₽/мес."
+            },
+            {
+              "field": "person_months",
+              "type": "quantitative",
+              "label": "Человеко-месяцы"
+            }
+          ]
+        },
+        "xAxisTitle": "Роль",
+        "yAxisTitle": "Fully-loaded ФОТ за 5 месяцев, ₽",
+        "valueFormat": "number",
+        "unit": "₽",
+        "layout": "full",
+        "maxRows": 12,
+        "surface": {
+          "showLegend": false,
+          "showValueLabels": true
+        }
+      }
+    ],
+    "tables": [
+      {
+        "id": "table-budget-scenarios",
+        "title": "Сценарии бюджета пилота",
+        "subtitle": "Пять месяцев, 7,3 FTE; резерв 15% и 55 075 ₽ на инфраструктуру и GitHub Team",
+        "showDescription": true,
+        "dataset": "budget_scenarios",
+        "defaultSort": {
+          "field": "funding_total_rub",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "sourceId": "src-model",
+        "layout": "full",
+        "columns": [
+          {"field": "scenario", "label": "Сценарий", "type": "text"},
+          {"field": "salary_basis", "label": "Основа ставок", "type": "text"},
+          {"field": "loaded_fot_rub", "label": "Fully-loaded ФОТ, ₽", "format": "number"},
+          {"field": "reserve_rub", "label": "Резерв 15%, ₽", "format": "number"},
+          {"field": "funding_total_rub", "label": "Итого к финансированию, ₽", "format": "number"},
+          {"field": "use", "label": "Применение", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-roles",
+        "title": "Команда, ставки и ответственность",
+        "subtitle": "Оклад до НДФЛ; один человек может совмещать несколько неполных ролей при наличии компетенций",
+        "showDescription": true,
+        "dataset": "role_costs",
+        "defaultSort": {
+          "field": "loaded_cost_base_rub",
+          "direction": "desc"
+        },
+        "density": "spacious",
+        "sourceId": "src-model",
+        "layout": "full",
+        "columns": [
+          {"field": "role", "label": "Роль", "type": "text"},
+          {"field": "fte", "label": "FTE", "format": "number"},
+          {"field": "person_months", "label": "Чел.-мес.", "format": "number"},
+          {"field": "monthly_salary_range", "label": "Оклад low–high, ₽/мес.", "type": "text"},
+          {"field": "monthly_salary_base_rub", "label": "База, ₽/мес.", "format": "number"},
+          {"field": "loaded_cost_base_rub", "label": "Стоимость за 5 мес., ₽", "format": "number"},
+          {"field": "responsibility", "label": "Результат роли", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-software",
+        "title": "Необходимое и опциональное ПО",
+        "subtitle": "Публичные цены на 24 августа 2026 года; USD пересчитан по плановому курсу 85 ₽/USD",
+        "showDescription": true,
+        "dataset": "software_budget",
+        "defaultSort": {
+          "field": "category",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "sourceId": "src-model",
+        "layout": "full",
+        "columns": [
+          {"field": "category", "label": "Категория", "type": "text"},
+          {"field": "software", "label": "ПО", "type": "text"},
+          {"field": "status", "label": "Статус", "type": "text"},
+          {"field": "public_price", "label": "Публичная цена", "type": "text"},
+          {"field": "planning_cost", "label": "Плановый расход", "type": "text"},
+          {"field": "decision", "label": "Решение для проекта", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-infrastructure",
+        "title": "Стоимость серверных контуров",
+        "subtitle": "Публичные облачные ориентиры; серверные размеры основаны на ранее выполненном capacity-анализе проекта",
+        "showDescription": true,
+        "dataset": "infrastructure_scenarios",
+        "defaultSort": {
+          "field": "monthly_rub",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "sourceId": "src-model",
+        "layout": "full",
+        "columns": [
+          {"field": "profile", "label": "Контур", "type": "text"},
+          {"field": "configuration", "label": "Конфигурация", "type": "text"},
+          {"field": "monthly_rub", "label": "₽/мес.", "format": "number"},
+          {"field": "annual_rub", "label": "₽/год", "format": "number"},
+          {"field": "included", "label": "Что включено", "type": "text"},
+          {"field": "comment", "label": "Ограничение", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-opex",
+        "title": "Ежегодные расходы и расширения",
+        "subtitle": "После запуска базового пилота; создание новых сценариев и ML/LLM не включены в базовый OPEX",
+        "showDescription": true,
+        "dataset": "annual_opex",
+        "defaultSort": {
+          "field": "item",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "sourceId": "src-model",
+        "layout": "full",
+        "columns": [
+          {"field": "item", "label": "Статья", "type": "text"},
+          {"field": "basis", "label": "Основа", "type": "text"},
+          {"field": "annual_rub", "label": "₽/год", "format": "number"},
+          {"field": "status", "label": "Статус", "type": "text"},
+          {"field": "comment", "label": "Комментарий", "type": "text"}
+        ]
+      },
+      {
+        "id": "table-exclusions",
+        "title": "Что не покупать и не включать в базовый MVP",
+        "subtitle": "Эти статьи становятся обоснованными только после отдельного требования по интеграции, масштабу или SLA",
+        "showDescription": true,
+        "dataset": "excluded_items",
+        "defaultSort": {
+          "field": "item",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "sourceId": "src-model",
+        "layout": "full",
+        "columns": [
+          {"field": "item", "label": "Статья", "type": "text"},
+          {"field": "why_not_now", "label": "Почему не сейчас", "type": "text"},
+          {"field": "trigger", "label": "Когда пересматривать", "type": "text"}
+        ]
+      }
+    ],
+    "sources": [
+      {"id": "src-model", "label": "Воспроизводимая SQL-модель ФОТ и OPEX", "path": "reports/project_economics/model.sql"},
+      {"id": "src-evidence", "label": "Сводка цен, зарплатных ориентиров и формул", "path": "reports/project_economics/evidence.md"},
+      {"id": "src-project", "label": "Техническое задание NPZ Security Flow", "path": "docs/BACKEND_PROJECT_SPEC.md"},
+      {"id": "src-habr", "label": "Хабр Карьера: зарплаты IT-специалистов, первое полугодие 2026", "href": "https://habr.com/ru/specials/1060148/"},
+      {"id": "src-tax", "label": "ФНС: страховые взносы и предельная база на 2026 год", "href": "https://www.nalog.gov.ru/rn77/news/activities_fts/16577139/"},
+      {"id": "src-timeweb", "label": "Timeweb Cloud: публичные цены VM", "href": "https://timeweb.cloud/services/cloud-servers/"},
+      {"id": "src-timeweb-calc", "label": "Timeweb Cloud: IP и автоматические backup", "href": "https://timeweb.cloud/prices/"},
+      {"id": "src-storage", "label": "Yandex Object Storage: правила тарификации", "href": "https://yandex.cloud/ru/docs/storage/pricing"},
+      {"id": "src-gpu", "label": "Selectel: публичные цены GPU VM", "href": "https://selectel.ru/services/cloud/servers/gpu/"},
+      {"id": "src-github", "label": "GitHub Team pricing", "href": "https://github.com/pricing"},
+      {"id": "src-youtrack", "label": "YouTrack Cloud pricing", "href": "https://www.jetbrains.com/youtrack/buy/"},
+      {"id": "src-grafana", "label": "Grafana Cloud pricing", "href": "https://grafana.com/pricing/"}
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Бюджет пилота NPZ Security Flow",
+        "layout": "full"
+      },
+      {
+        "id": "executive-summary",
+        "type": "markdown",
+        "body": "## Executive Summary\n\n- **На базовый пятимесячный пилот закладывайте около 17,0 млн ₽.** Из них 14,75 млн ₽ — fully-loaded ФОТ команды 7,3 FTE, 2,21 млн ₽ — резерв 15%, около 55 тыс. ₽ — облачный контур и GitHub Team на период разработки. Покупка on-premise-оборудования, внешний аудит, командировки и промышленная интеграция в эту сумму не входят.\n- **Прямые лицензии текущего программного ядра можно принять равными 0 ₽.** Python/FastAPI/React/SQLite и инструменты качества — open source; платные GitHub, YouTrack и Grafana являются удобными, но необязательными опциями.\n- **После запуска главный OPEX — сопровождение, а не сервер.** Базовая команда поддержки 1,6 FTE стоит около 6,98 млн ₽ в год, а три небольшие VM с backup — около 91 тыс. ₽ в год. Вместе с GitHub Team ориентир ядра — 7,11 млн ₽ в год до новых сценариев и внешних услуг.\n- **ML/LLM следует финансировать отдельной опцией.** Доведение текущего контура рекомендаций оценивается примерно в 2,0 млн ₽ ФОТ; GPU нужен только после измерения задержки и может стоить от 6 952 ₽ за 100 часов до 50 750 ₽ за полный месяц.",
+        "layout": "full"
+      },
+      {
+        "id": "headline-strip",
+        "type": "metric-strip",
+        "cardIds": ["card-team", "card-effort", "card-fot", "card-budget", "card-opex"],
+        "layout": "full"
+      },
+      {
+        "id": "budget-finding",
+        "type": "markdown",
+        "sourceId": "src-model",
+        "body": "## ФОТ определяет экономику пилота\n\n**Базовый сценарий — 7,3 FTE на 5 месяцев, то есть 36,5 человеко-месяца.** При выбранных окладах начисленная зарплата составляет 10,32 млн ₽, а после страховых взносов 30% и организационных накладных 10% — 14,75 млн ₽.\n\nДиапазон при неизменном составе команды — 11,93–18,15 млн ₽. Он отражает только ставки; изменение длительности с четырёх до шести месяцев расширяет крайний диапазон до 9,54–21,78 млн ₽ до резерва. Поэтому для финансовой заявки полезнее базовый сценарий с резервом 15%, а не ложная точность одной минимальной цифры.",
+        "layout": "full"
+      },
+      {
+        "id": "budget-scenarios-block",
+        "type": "table",
+        "tableId": "table-budget-scenarios",
+        "layout": "full"
+      },
+      {
+        "id": "roles-finding",
+        "type": "markdown",
+        "sourceId": "src-model",
+        "body": "## Постоянные технические и предметные роли нельзя заменить одним универсальным разработчиком\n\nНаибольший вклад дают lead/архитектор, backend, frontend, технолог и QA, потому что они заняты весь проект. Частичные роли — PM, методист, DevOps, AppSec и UX — можно совмещать между людьми, но их результаты всё равно должны быть запланированы и приняты.\n\nОсобенно критичен инженер-технолог ЭЛОУ-АВТ: код не может сам подтвердить безопасные действия, причинность и реальные нормативы. Методист отдельно подтверждает учебную валидность scoring, SAGAT и NASA-TLX; AppSec — границы доступа и аудита. Экономия за счёт исключения этих ролей переносит стоимость в риск неприёмки.",
+        "layout": "full"
+      },
+      {
+        "id": "role-chart-block",
+        "type": "chart",
+        "chartId": "chart-role-costs",
+        "layout": "full"
+      },
+      {
+        "id": "role-table-block",
+        "type": "table",
+        "tableId": "table-roles",
+        "layout": "full"
+      },
+      {
+        "id": "software-finding",
+        "type": "markdown",
+        "sourceId": "src-evidence",
+        "body": "## Ядро не требует коммерческих лицензий\n\n**Для разработки и эксплуатации достаточно open-source-набора:** текущий Python/FastAPI/SQLite backend, React/Vite frontend, Linux, reverse proxy, Git, CI, Playwright, k6, Prometheus/Grafana/Loki, backup-клиент и сканер уязвимостей. Стоимость лицензий — 0 ₽, но нужен реестр компонентов и проверка их лицензий перед поставкой.\n\nПлатные сервисы экономят рабочее время, но не являются технической зависимостью. Для команды до десяти человек YouTrack остаётся бесплатным; GitHub Team для десяти пользователей стоит около 3 400 ₽ в месяц по плановому курсу. В закрытом промышленном контуре Git, задачи и мониторинг разумно разместить на инфраструктуре заказчика.",
+        "layout": "full"
+      },
+      {
+        "id": "software-table-block",
+        "type": "table",
+        "tableId": "table-software",
+        "layout": "full"
+      },
+      {
+        "id": "infra-finding",
+        "type": "markdown",
+        "sourceId": "src-evidence",
+        "body": "## Серверный бюджет мал, пока не добавлены HA и постоянный GPU\n\nДля ядра пилота стартовая целевая VM — 4 vCPU, 8 ГБ RAM и 80 ГБ SSD. Практический контур должен иметь как минимум production и staging, а мониторинг лучше вынести на третью небольшую VM. По публичному облачному прайсу это около 7 615 ₽ в месяц вместе с публичными IP, автоматическими backup и 100 ГБ объектного хранения.\n\nЭта цифра — ориентир закупки, а не подтверждённый SLA: прежний нагрузочный тест выполнен на Apple M4. Перед пилотом надо повторить тест на выбранной Linux VM с реальными WebSocket-клиентами и провести восстановление из backup.",
+        "layout": "full"
+      },
+      {
+        "id": "infrastructure-table-block",
+        "type": "table",
+        "tableId": "table-infrastructure",
+        "layout": "full"
+      },
+      {
+        "id": "opex-finding",
+        "type": "markdown",
+        "sourceId": "src-model",
+        "body": "## После запуска планируйте около 7,1 млн ₽ в год на ядро\n\nБазовая модель сопровождения — 1,6 FTE: доли backend, frontend, QA, DevOps, технолога, методиста, AppSec и PM. Fully-loaded стоимость — 6,98 млн ₽ в год. Вместе с инфраструктурой и GitHub Team получается около 7,11 млн ₽ в год до создания нового контента.\n\nОдин дополнительный сценарий заложен как отдельный work package на 2,05 человеко-месяца и около 702 тыс. ₽. Это важнее дискового хранения: даже 1 000 завершённых сессий в год потребуют лишь десятки гигабайт с резервными копиями.",
+        "layout": "full"
+      },
+      {
+        "id": "opex-table-block",
+        "type": "table",
+        "tableId": "table-opex",
+        "layout": "full"
+      },
+      {
+        "id": "scope-boundary",
+        "type": "markdown",
+        "body": "## Не закладывайте промышленную платформу раньше подтверждённой потребности\n\nPostgreSQL, Kubernetes, несколько backend-инстансов, OPC/SCADA, коммерческая DCS, сертифицированная ОС и постоянный GPU не требуются текущей архитектуре. Их преждевременная закупка увеличит стоимость и сопровождение, не закрыв главные риски — предметную валидацию, recovery, frontend QA и безопасность.",
+        "layout": "full"
+      },
+      {
+        "id": "exclusions-table-block",
+        "type": "table",
+        "tableId": "table-exclusions",
+        "layout": "full"
+      },
+      {
+        "id": "recommendations",
+        "type": "markdown",
+        "body": "## Рекомендуемые следующие шаги\n\n1. **Зафиксировать бюджетный baseline:** 5 месяцев, 7,3 FTE, 14,75 млн ₽ fully-loaded ФОТ и 15% резерв; рабочая заявка — около 17,0 млн ₽ без внешних услуг и оборудования.\n2. **Заменить плановые оклады внутренними ставками:** Finance/HR должны указать gross-оклад, премии, применимый тариф взносов, стоимость подрядчиков и корпоративный коэффициент накладных.\n3. **Получить отдельные котировки:** on-premise-сервер/виртуальная инфраструктура, независимый security review, командировки и обязательное ПО заказчика. Не прятать их внутри ФОТ.\n4. **Профинансировать предметную приёмку как результат:** утверждённые пороги, причинность, безопасные действия, scoring и методику обучения, а не только часы эксперта.\n5. **Оставить ML/LLM опцией:** сначала измерить ценность рекомендаций и CPU latency; только затем утверждать 2,0 млн ₽ дополнительного ФОТ и GPU.\n6. **После выбора площадки пересчитать TCO:** добавить внутреннюю стоимость VM, backup, мониторинга, поддержки, новых сценариев и число сессий в год.",
+        "layout": "full"
+      },
+      {
+        "id": "further-questions",
+        "type": "markdown",
+        "body": "## Что нужно уточнить перед утверждением сметы\n\n- Бюджет считается для найма в штат, внутренней команды или подрядчика?\n- Какая география и какие внутренние грейды применяются к каждой роли?\n- Есть ли льготный тариф страховых взносов и какой корпоративный overhead использует Finance?\n- Пилот будет on-premise, в российском облаке или на существующей виртуальной платформе?\n- Какой SLA, RTO/RPO, срок хранения и режим поддержки — рабочее время или 24×7?\n- Сколько новых сценариев и площадок требуется в первый год?\n- Требуются ли сертифицированная ОС, средства защиты информации, независимый пентест или аттестация?\n- Допустима ли локальная LLM и какое максимальное время подготовки рекомендации приемлемо?",
+        "layout": "full"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "body": "## Допущения и ограничения\n\n- Цены и зарплатные ориентиры отражают публичные данные на 24 августа 2026 года; перед закупкой нужны коммерческие предложения и проверка доступности поставщика.\n- Зарплатные вилки — плановые ориентиры для РФ, а не оффер конкретному кандидату. Редкие совмещённые компетенции могут стоить дороже.\n- Тариф страховых взносов 30% применён консервативно ко всему ФОТ; фактическая эффективная ставка зависит от статуса работодателя, годовой базы и льгот.\n- Дополнительные 10% накладных и резерв проекта 15% — управленческие допущения, которые Finance должен заменить корпоративными нормативами.\n- В базовый итог не входят независимый аудит, пентест, закупка on-premise-оборудования, командировки, сертификация, интеграция с АСУ ТП и круглосуточная поддержка.\n- Нагрузочный результат текущего проекта не является SLA целевого сервера; инфраструктурный размер требуется подтвердить на выбранной площадке.\n- Оценка нового сценария основана на текущей архитектуре и повторном использовании существующих компонентов; новый тип установки или точная физическая модель потребуют отдельной оценки.",
+        "layout": "full"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-24T23:30:00+03:00",
+    "status": "ready",
+    "datasets": {
+      "headline_metrics": [
+        {
+          "pilot_fte": 7.3,
+          "pilot_person_months": 36.5,
+          "base_fot_rub": 14750450,
+          "funding_request_rub": 17018093,
+          "annual_core_opex_rub": 7111152
+        }
+      ],
+      "budget_scenarios": [
+        {
+          "order": 1,
+          "scenario": "Экономный",
+          "salary_basis": "Нижние плановые ставки",
+          "loaded_fot_rub": 11926200,
+          "reserve_rub": 1788930,
+          "funding_total_rub": 13770205,
+          "use": "Если роли доступны по региональным ставкам и scope стабилен"
+        },
+        {
+          "order": 2,
+          "scenario": "Базовый",
+          "salary_basis": "Рыночные ориентиры РФ/Москвы по редким ролям",
+          "loaded_fot_rub": 14750450,
+          "reserve_rub": 2212568,
+          "funding_total_rub": 17018093,
+          "use": "Рекомендуемый ориентир бюджетной заявки"
+        },
+        {
+          "order": 3,
+          "scenario": "Консервативный",
+          "salary_basis": "Верхние плановые ставки",
+          "loaded_fot_rub": 18153850,
+          "reserve_rub": 2723078,
+          "funding_total_rub": 20932003,
+          "use": "Если нужны senior-специалисты и быстрый найм"
+        }
+      ],
+      "role_costs": [
+        {
+          "role": "Backend lead / архитектор",
+          "role_short": "Backend lead",
+          "fte": 1.0,
+          "person_months": 5.0,
+          "monthly_salary_range": "420 000–550 000",
+          "monthly_salary_base_rub": 497000,
+          "loaded_cost_base_rub": 3553550,
+          "responsibility": "Архитектура, recovery, code review, производительность и техническая приёмка"
+        },
+        {
+          "role": "Backend Python инженер",
+          "role_short": "Backend",
+          "fte": 1.0,
+          "person_months": 5.0,
+          "monthly_salary_range": "220 000–350 000",
+          "monthly_salary_base_rub": 278000,
+          "loaded_cost_base_rub": 1987700,
+          "responsibility": "API/WebSocket, persistence, auth ML-контура, наблюдаемость и исправления"
+        },
+        {
+          "role": "Frontend React инженер",
+          "role_short": "Frontend",
+          "fte": 1.0,
+          "person_months": 5.0,
+          "monthly_salary_range": "210 000–320 000",
+          "monthly_salary_base_rub": 260000,
+          "loaded_cost_base_rub": 1859000,
+          "responsibility": "Пульт и кабинеты, обработка ошибок, accessibility, фиксация зависимостей и тесты"
+        },
+        {
+          "role": "QA automation",
+          "role_short": "QA",
+          "fte": 1.0,
+          "person_months": 5.0,
+          "monthly_salary_range": "180 000–300 000",
+          "monthly_salary_base_rub": 230000,
+          "loaded_cost_base_rub": 1644500,
+          "responsibility": "Frontend/API/WebSocket E2E, нагрузка, backup/recovery и регрессия сценария"
+        },
+        {
+          "role": "Инженер-технолог ЭЛОУ-АВТ",
+          "role_short": "Технолог",
+          "fte": 1.0,
+          "person_months": 5.0,
+          "monthly_salary_range": "200 000–320 000",
+          "monthly_salary_base_rub": 250000,
+          "loaded_cost_base_rub": 1787500,
+          "responsibility": "Причинность, пороги, безопасные действия и предметная приёмка"
+        },
+        {
+          "role": "Product / Project manager",
+          "role_short": "PM / PO",
+          "fte": 0.5,
+          "person_months": 2.5,
+          "monthly_salary_range": "200 000–330 000",
+          "monthly_salary_base_rub": 260000,
+          "loaded_cost_base_rub": 929500,
+          "responsibility": "Scope, бюджет, KPI пилота, решения заказчика и управление рисками"
+        },
+        {
+          "role": "Методист / human factors",
+          "role_short": "Методист",
+          "fte": 0.5,
+          "person_months": 2.5,
+          "monthly_salary_range": "160 000–220 000",
+          "monthly_salary_base_rub": 180000,
+          "loaded_cost_base_rub": 643500,
+          "responsibility": "SAGAT, NASA-TLX, scoring, учебная валидность и интерпретация отчёта"
+        },
+        {
+          "role": "DevOps / SRE",
+          "role_short": "DevOps",
+          "fte": 0.5,
+          "person_months": 2.5,
+          "monthly_salary_range": "220 000–350 000",
+          "monthly_salary_base_rub": 280000,
+          "loaded_cost_base_rub": 1001000,
+          "responsibility": "CI/CD, TLS, monitoring, backup/restore, runbook и capacity test"
+        },
+        {
+          "role": "AppSec / ИБ",
+          "role_short": "AppSec",
+          "fte": 0.5,
+          "person_months": 2.5,
+          "monthly_salary_range": "200 000–330 000",
+          "monthly_salary_base_rub": 250000,
+          "loaded_cost_base_rub": 893750,
+          "responsibility": "Threat model, secrets, RBAC, аудит, hardening и требования площадки"
+        },
+        {
+          "role": "UX / UI",
+          "role_short": "UX / UI",
+          "fte": 0.3,
+          "person_months": 1.5,
+          "monthly_salary_range": "160 000–280 000",
+          "monthly_salary_base_rub": 210000,
+          "loaded_cost_base_rub": 450450,
+          "responsibility": "Мнемосхема, тревоги, когнитивная нагрузка и usability-тестирование"
+        }
+      ],
+      "software_budget": [
+        {
+          "order": 1,
+          "category": "Приложение",
+          "software": "Python, FastAPI, Pydantic, SQLAlchemy, Alembic, SQLite, React, Vite",
+          "status": "Обязательно",
+          "public_price": "0 ₽ лицензий",
+          "planning_cost": "0 ₽",
+          "decision": "Оставить текущий стек; вести SBOM и проверку лицензий"
+        },
+        {
+          "order": 2,
+          "category": "ОС и публикация",
+          "software": "Linux, Nginx/Caddy, systemd или Docker Engine/Compose",
+          "status": "Обязательно",
+          "public_price": "0 ₽ лицензий",
+          "planning_cost": "0 ₽",
+          "decision": "Выбрать стандарт заказчика; отдельный Node.js в production не нужен"
+        },
+        {
+          "order": 3,
+          "category": "Качество и безопасность",
+          "software": "pytest, Ruff, mypy, Playwright, k6, Trivy, npm audit",
+          "status": "Обязательно",
+          "public_price": "0 ₽ лицензий",
+          "planning_cost": "0 ₽",
+          "decision": "Добавить frontend E2E, нагрузку и dependency/container scanning в CI"
+        },
+        {
+          "order": 4,
+          "category": "Мониторинг",
+          "software": "Prometheus + Grafana OSS + Loki",
+          "status": "Обязательно для пилота",
+          "public_price": "0 ₽ лицензий",
+          "planning_cost": "VM входит в инфраструктуру",
+          "decision": "Self-hosted по умолчанию; не отправлять телеметрию наружу без ИБ"
+        },
+        {
+          "order": 5,
+          "category": "Код и CI",
+          "software": "GitHub Team",
+          "status": "Опция",
+          "public_price": "4 USD/польз./мес.",
+          "planning_cost": "≈3 400 ₽/мес. для 10 пользователей",
+          "decision": "Можно заменить существующим GitLab/Gitea заказчика"
+        },
+        {
+          "order": 6,
+          "category": "Управление задачами",
+          "software": "YouTrack Cloud",
+          "status": "Опция",
+          "public_price": "0 USD до 10; от 4,50 USD/польз./мес. для 11+",
+          "planning_cost": "0 ₽ для команды до 10",
+          "decision": "Не покупать, если у заказчика уже есть трекер"
+        },
+        {
+          "order": 7,
+          "category": "Облачный мониторинг",
+          "software": "Grafana Cloud Pro",
+          "status": "Опция",
+          "public_price": "от 19 USD/мес. + usage",
+          "planning_cost": "от ≈1 615 ₽/мес. + usage",
+          "decision": "Только если допустим внешний SaaS; иначе Grafana OSS"
+        },
+        {
+          "order": 8,
+          "category": "Резервные копии",
+          "software": "restic + S3-compatible storage",
+          "status": "Обязательно",
+          "public_price": "Клиент 0 ₽; 100 ГБ ≈129–235 ₽/мес.",
+          "planning_cost": "235 ₽/мес. + операции",
+          "decision": "Шифрование, retention и регулярный restore drill"
+        },
+        {
+          "order": 9,
+          "category": "LLM",
+          "software": "llama.cpp + Qwen3-4B-Instruct-2507",
+          "status": "Опция",
+          "public_price": "0 ₽ лицензий",
+          "planning_cost": "CPU VM или GPU считаются отдельно",
+          "decision": "Не включать в обязательное ядро; шаблонный fallback уже есть"
+        }
+      ],
+      "infrastructure_scenarios": [
+        {
+          "profile": "Демо: ядро",
+          "configuration": "1 × 4 vCPU / 8 ГБ / 80 ГБ",
+          "monthly_rub": 2460,
+          "annual_rub": 29520,
+          "included": "VM, публичный IP, backup 80 ГБ",
+          "comment": "Нет staging и отдельного мониторинга"
+        },
+        {
+          "profile": "Пилот: production + staging",
+          "configuration": "2 × 4 vCPU / 8 ГБ / 80 ГБ",
+          "monthly_rub": 5155,
+          "annual_rub": 61860,
+          "included": "2 VM, 2 IP, backup, 100 ГБ object storage",
+          "comment": "Мониторинг делит ресурсы с приложением"
+        },
+        {
+          "profile": "Пилот: ядро + мониторинг",
+          "configuration": "3 × 4 vCPU / 8 ГБ / 80 ГБ",
+          "monthly_rub": 7615,
+          "annual_rub": 91380,
+          "included": "Production, staging, monitoring, IP, backup, object storage",
+          "comment": "Рекомендуемый облачный ориентир; повторить load test"
+        },
+        {
+          "profile": "Пилот + CPU LLM",
+          "configuration": "Ядро из 2 VM + 8 vCPU / 12 ГБ / 100 ГБ",
+          "monthly_rub": 8725,
+          "annual_rub": 104700,
+          "included": "Production, staging, отдельная LLM VM, IP и backup",
+          "comment": "Для пилота; latency и конкуренцию необходимо измерить"
+        },
+        {
+          "profile": "GPU L4, по потреблению",
+          "configuration": "NVIDIA L4 24 ГБ / 8 vCPU / 32 ГБ, 100 ч/мес.",
+          "monthly_rub": 6952,
+          "annual_rub": 83424,
+          "included": "Только GPU VM на 100 часов ежемесячно",
+          "comment": "Добавляется к core; выключать вне генераций"
+        },
+        {
+          "profile": "GPU L4, постоянно",
+          "configuration": "NVIDIA L4 24 ГБ / 8 vCPU / 32 ГБ, 730 ч/мес.",
+          "monthly_rub": 50750,
+          "annual_rub": 609000,
+          "included": "Постоянно работающая GPU VM",
+          "comment": "Не обосновано до измерения нагрузки и latency"
+        }
+      ],
+      "annual_opex": [
+        {
+          "order": 1,
+          "item": "Команда сопровождения",
+          "basis": "1,6 FTE",
+          "annual_rub": 6978972,
+          "status": "База",
+          "comment": "Backend, frontend, QA, DevOps, технолог, методист, AppSec и PM"
+        },
+        {
+          "order": 2,
+          "item": "Инфраструктура ядра",
+          "basis": "3 небольшие VM + backup",
+          "annual_rub": 91380,
+          "status": "База",
+          "comment": "Публичный облачный ориентир; заменить внутренней ставкой on-prem"
+        },
+        {
+          "order": 3,
+          "item": "GitHub Team",
+          "basis": "10 пользователей × 4 USD × 85 ₽",
+          "annual_rub": 40800,
+          "status": "Опция в базовом ориентире",
+          "comment": "Можно заменить существующим forge заказчика"
+        },
+        {
+          "order": 4,
+          "item": "Базовый OPEX ядра",
+          "basis": "Команда + инфраструктура + GitHub",
+          "annual_rub": 7111152,
+          "status": "Итого",
+          "comment": "До новых сценариев, внешнего аудита и командировок"
+        },
+        {
+          "order": 5,
+          "item": "Один новый сценарий",
+          "basis": "2,05 человеко-месяца",
+          "annual_rub": 702416,
+          "status": "По объёму контента",
+          "comment": "Технолог, методист, backend, frontend, QA и PM"
+        },
+        {
+          "order": 6,
+          "item": "ML/LLM сопровождение",
+          "basis": "0,3 FTE",
+          "annual_rub": 1801800,
+          "status": "Опция",
+          "comment": "Без GPU; качество и guardrails должны иметь отдельные KPI"
+        },
+        {
+          "order": 7,
+          "item": "GPU L4, постоянно",
+          "basis": "69,52 ₽/ч × 730 ч × 12",
+          "annual_rub": 609000,
+          "status": "Опция",
+          "comment": "Предпочтительнее аренда по потреблению до устойчивой загрузки"
+        }
+      ],
+      "excluded_items": [
+        {
+          "order": 1,
+          "item": "PostgreSQL / managed database",
+          "why_not_now": "Основное хранилище MVP — файловая SQLite; один backend-инстанс",
+          "trigger": "Подтверждённая высокая конкурентная запись или несколько инстансов"
+        },
+        {
+          "order": 2,
+          "item": "Kubernetes и микросервисы",
+          "why_not_now": "Модульный монолит проще и достаточен для пилота",
+          "trigger": "Несколько независимых команд/контуров и утверждённый HA SLA"
+        },
+        {
+          "order": 3,
+          "item": "OPC/SCADA/DCS лицензии",
+          "why_not_now": "Интеграция с реальным производством прямо исключена из MVP",
+          "trigger": "Отдельное ТЗ, cyber-security architecture и стенд интеграции"
+        },
+        {
+          "order": 4,
+          "item": "Постоянный GPU",
+          "why_not_now": "LLM опциональна, текущая модель помещается в CPU/RAM, есть fallback",
+          "trigger": "Измеренная задержка и конкурентная генерация подтверждают потребность"
+        },
+        {
+          "order": 5,
+          "item": "Windows Server и коммерческая СУБД",
+          "why_not_now": "Текущий стек не зависит от них",
+          "trigger": "Обязательный корпоративный стандарт заказчика"
+        },
+        {
+          "order": 6,
+          "item": "Промышленная сертификация",
+          "why_not_now": "Продукт является учебным MVP с provisional-порогами",
+          "trigger": "Использование для формальной аттестации или производственных решений"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {"id": "src-model", "label": "Воспроизводимая SQL-модель ФОТ и OPEX", "path": "reports/project_economics/model.sql"},
+    {"id": "src-evidence", "label": "Сводка цен, зарплатных ориентиров и формул", "path": "reports/project_economics/evidence.md"},
+    {"id": "src-project", "label": "Техническое задание NPZ Security Flow", "path": "docs/BACKEND_PROJECT_SPEC.md"},
+    {"id": "src-habr", "label": "Хабр Карьера: зарплаты IT-специалистов, первое полугодие 2026", "href": "https://habr.com/ru/specials/1060148/"},
+    {"id": "src-tax", "label": "ФНС: страховые взносы и предельная база на 2026 год", "href": "https://www.nalog.gov.ru/rn77/news/activities_fts/16577139/"},
+    {"id": "src-timeweb", "label": "Timeweb Cloud: публичные цены VM", "href": "https://timeweb.cloud/services/cloud-servers/"},
+    {"id": "src-timeweb-calc", "label": "Timeweb Cloud: IP и автоматические backup", "href": "https://timeweb.cloud/prices/"},
+    {"id": "src-storage", "label": "Yandex Object Storage: правила тарификации", "href": "https://yandex.cloud/ru/docs/storage/pricing"},
+    {"id": "src-gpu", "label": "Selectel: публичные цены GPU VM", "href": "https://selectel.ru/services/cloud/servers/gpu/"},
+    {"id": "src-github", "label": "GitHub Team pricing", "href": "https://github.com/pricing"},
+    {"id": "src-youtrack", "label": "YouTrack Cloud pricing", "href": "https://www.jetbrains.com/youtrack/buy/"},
+    {"id": "src-grafana", "label": "Grafana Cloud pricing", "href": "https://grafana.com/pricing/"}
+  ]
+}
