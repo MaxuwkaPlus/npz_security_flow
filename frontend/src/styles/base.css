@@ -9,7 +9,6 @@
   color: var(--text);
   background: var(--canvas);
   font-synthesis: none;
-  color-scheme: light;
 }
 
 body {
@@ -44,12 +43,12 @@ button:hover:enabled {
   background: var(--brand-soft);
 }
 button:active:enabled {
-  background: #dceaf5;
+  background: var(--active-bg);
 }
 button:disabled {
-  color: #74808a;
-  background: #edf0f3;
-  border-color: #dce1e6;
+  color: var(--disabled-text);
+  background: var(--disabled-bg);
+  border-color: var(--disabled-border);
   cursor: not-allowed;
 }
 :where(button, a, input, select, textarea):focus-visible {
@@ -91,7 +90,7 @@ textarea {
   padding: 9px 12px;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid #aebbc7;
+  border: 1px solid var(--input-border);
   border-radius: var(--radius);
   max-width: 100%;
 }
@@ -111,17 +110,17 @@ input[type="checkbox"] {
   flex-shrink: 0;
 }
 .primary {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
 }
 .primary:hover:enabled {
-  background: var(--brand-hover);
-  border-color: var(--brand-hover);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 .danger {
   color: var(--danger);
-  border-color: #d79fa3;
+  border-color: var(--danger-border);
 }
 .danger:hover:enabled {
   background: var(--danger-bg);
@@ -161,24 +160,24 @@ input[type="checkbox"] {
 .status.approved {
   color: var(--success);
   background: var(--success-bg);
-  border-color: #a6cbb3;
+  border-color: var(--success-border);
 }
 .status.paused {
   color: var(--warning);
   background: var(--warning-bg);
-  border-color: #dcc28b;
+  border-color: var(--warning-border);
 }
 .status.failed,
 .status.aborted,
 .status.rejected {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: #e1aeb2;
+  border-color: var(--danger-border);
 }
 .status.ready {
   color: var(--brand);
   background: var(--brand-soft);
-  border-color: #a7c4dc;
+  border-color: var(--info-border);
 }
 .banner {
   padding: 14px 18px;
@@ -195,10 +194,10 @@ input[type="checkbox"] {
   max-width: calc(100vw - 32px);
   padding: 14px 20px;
   color: var(--text);
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-left: 4px solid var(--brand);
-  box-shadow: 0 4px 20px #182b4426;
+  box-shadow: 0 4px 20px var(--shadow);
 }
 .toast.error {
   border-left-color: var(--danger);

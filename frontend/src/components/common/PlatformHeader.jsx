@@ -1,3 +1,5 @@
+import { ThemeToggle } from "./ThemeToggle.jsx";
+
 /** Название самостоятельного проекта, без корпоративного знака и логотипов. */
 export function PlatformHeader({ section, children }) {
   return (
@@ -11,7 +13,10 @@ export function PlatformHeader({ section, children }) {
         </span>
       </div>
       {section && <span className="platform-section">{section}</span>}
-      <div className="platform-actions">{children}</div>
+      <div className="platform-actions">
+        {children}
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

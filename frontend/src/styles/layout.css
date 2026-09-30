@@ -12,7 +12,7 @@
   padding: 18px 40px;
   border-top: 5px solid var(--brand);
   border-bottom: 1px solid var(--border);
-  background: white;
+  background: var(--surface);
 }
 .platform-identity {
   display: flex;
@@ -49,11 +49,21 @@
   color: var(--muted);
   font-size: 13px;
 }
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.theme-toggle > span {
+  font-size: 18px;
+  line-height: 1;
+}
 .section-nav {
   display: flex;
   gap: 30px;
   padding: 0 40px;
-  background: white;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .section-nav > * {
@@ -124,7 +134,7 @@
 }
 .launch-card {
   padding: 28px;
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-top: 3px solid var(--brand);
   min-width: 0;
@@ -305,7 +315,7 @@
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
-  background: white;
+  background: var(--surface);
 }
 .login-layout {
   display: grid;

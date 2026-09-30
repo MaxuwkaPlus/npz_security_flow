@@ -45,7 +45,7 @@
   gap: 20px;
   padding: 16px 32px;
   border-bottom: 1px solid var(--border);
-  background: white;
+  background: var(--surface);
   font-size: 13px;
 }
 .stagebar > span {
@@ -58,7 +58,7 @@
 .progress {
   flex: 1;
   height: 4px;
-  background: #dde5ec;
+  background: var(--track);
   overflow: hidden;
 }
 .progress i,
@@ -89,7 +89,7 @@
 .actions,
 .metrics,
 .instruction {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--border);
   padding: 20px;
   min-width: 0;
@@ -280,7 +280,7 @@
   font-weight: 400;
 }
 .observations .emphasis {
-  border-color: #c59843;
+  border-color: var(--warning-border);
   color: var(--warning);
 }
 .setpoints {

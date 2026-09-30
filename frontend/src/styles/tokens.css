@@ -16,6 +16,22 @@
   --warning-bg: #fff6e3;
   --danger: #b02a32;
   --danger-bg: #fff0f1;
+  --primary: #005a9b;
+  --primary-hover: #004879;
+  --on-primary: #ffffff;
+  --active-bg: #dceaf5;
+  --disabled-text: #74808a;
+  --disabled-bg: #edf0f3;
+  --disabled-border: #dce1e6;
+  --input-border: #aebbc7;
+  --success-border: #a6cbb3;
+  --warning-border: #dcc28b;
+  --danger-border: #d79fa3;
+  --info-border: #a7c4dc;
+  --track: #dde5ec;
+  --backdrop: #142d4666;
+  --shadow: #182b4426;
+  color-scheme: light;
   --radius: 3px;
   --font-body: Arial, "Helvetica Neue", sans-serif;
   /* PF Din не включён в репозиторий. Не извлекаем подмножества шрифта из PDF. */
@@ -23,4 +39,39 @@
     "PF Din Text Cond Pro", "Arial Narrow", "Roboto Condensed", Arial,
     sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+/* Без сохранённого выбора используется тёмная тема. Синий фирменный цвет
+   остаётся на основных кнопках; для текста выбран более светлый оттенок. */
+:root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --brand: #83bff0;
+  --brand-hover: #afd8f8;
+  --brand-soft: #20374b;
+  --text: #e5ecf2;
+  --muted: #a7b6c4;
+  --border: #405164;
+  --border-light: #2e3e4e;
+  --surface: #192735;
+  --canvas: #101b26;
+  --success: #8ed3a6;
+  --success-bg: #1c362c;
+  --warning: #efc36f;
+  --warning-bg: #3a3020;
+  --danger: #ffa2a7;
+  --danger-bg: #40272e;
+  --primary: #005a9b;
+  --primary-hover: #006db8;
+  --active-bg: #294861;
+  --disabled-text: #8595a4;
+  --disabled-bg: #23313f;
+  --disabled-border: #354555;
+  --input-border: #62768a;
+  --success-border: #4c8161;
+  --warning-border: #917442;
+  --danger-border: #9a5c64;
+  --info-border: #517fa5;
+  --track: #35495c;
+  --backdrop: #050b12bd;
+  --shadow: #00000059;
 }
